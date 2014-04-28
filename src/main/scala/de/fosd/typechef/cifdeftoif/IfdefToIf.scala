@@ -1,4 +1,4 @@
-package de.fosd.typechef.crewrite
+package de.fosd.typechef.cifdeftoif
 
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable

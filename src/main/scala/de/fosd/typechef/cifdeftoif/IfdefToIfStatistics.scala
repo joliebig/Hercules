@@ -1,4 +1,4 @@
-package de.fosd.typechef.crewrite
+package de.fosd.typechef.cifdeftoif
 
 import java.io._
 import de.fosd.typechef.parser.c._

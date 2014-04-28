@@ -1,4 +1,4 @@
-package de.fosd.typechef.crewrite
+package de.fosd.typechef.cifdeftoif
 
 import org.apache.logging.log4j.LogManager
 

@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="JAVA_MODULE" version="4">
+  <component name="FacetManager">
+    <facet type="scala" name="Scala">
+      <configuration>
+        <option name="compilerLibraryLevel" value="Project" />
+        <option name="compilerLibraryName" value="SBT: scala:2.10.1" />
+        <option name="compilerOptions" value="-deprecation -unchecked -optimise" />
+        <option name="deprecationWarnings" value="true" />
+        <option name="optimiseBytecode" value="true" />
+        <option name="uncheckedWarnings" value="true" />
+      </configuration>
+    </facet>
+  </component>
   <component name="NewModuleRootManager" inherit-compiler-output="false">
     <output url="file://$MODULE_DIR$/target/scala-2.10/classes" />
     <output-test url="file://$MODULE_DIR$/target/scala-2.10/test-classes" />
@@ -33,7 +45,8 @@
     <orderEntry type="library" name="xtc_2.9.1-2.3.1.jar" level="project" />
     <orderEntry type="module" module-name="Frontend" exported="" />
     <orderEntry type="module" module-name="Sampling" exported="" />
-    <orderEntry type="module" module-name="CParser" />
+    <orderEntry type="module" module-name="CParser" exported="" />
+    <orderEntry type="module" module-name="CRewrite" exported="" />
   </component>
 </module>
 

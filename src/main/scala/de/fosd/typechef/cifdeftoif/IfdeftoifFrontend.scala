@@ -1,4 +1,4 @@
-package de.fosd.typechef.crewrite
+package de.fosd.typechef.cifdeftoif
 
 
 import de.fosd.typechef.parser.c._
@@ -10,6 +10,7 @@ import de.fosd.typechef.parser.TokenReader
 import java.util.zip.{GZIPOutputStream, GZIPInputStream}
 import de.fosd.typechef.parser.c.CTypeContext
 import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
+import de.fosd.typechef.crewrite._
 
 
 object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
