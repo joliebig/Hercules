@@ -1,0 +1,17 @@
+struct ifdef_options {
+  int a;
+  int b;
+} options;
+double _2_a;
+int _1_a;
+double _4_b;
+int _3_b;
+void main()  {
+  double i =  0;
+  if ((options.a && options.b)) {
+    (i = (_1_a + _3_b));
+  }  
+  if (((! options.a) && options.b)) {
+    (i = (_2_a + _3_b));
+  }  
+}
