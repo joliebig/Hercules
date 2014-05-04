@@ -153,6 +153,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //ProductGeneration.estimateNumberOfVariants(ast, fm_ts)
                             //val includeStructFilename = opt.getincludeStructFilename()
                             stopWatch.start("ifdeftoif")
+                            println("ifdeftoif started.")
                             var i: IfdefToIf = null
                             if (opt.ifdeftoifstatistics) {
                                 i = new IfdefToIf with IfdefToIfStatistics
