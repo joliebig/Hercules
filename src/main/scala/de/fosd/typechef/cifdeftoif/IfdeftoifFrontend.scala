@@ -130,7 +130,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                     //ProductGeneration.estimateNumberOfVariants(ast, fm_ts)
 
                     stopWatch.start("typechecking")
-                    println("type checking.")
+                    println("type checking")
                     val typeCheckStatus = ts.checkAST()
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
@@ -153,7 +153,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //ProductGeneration.estimateNumberOfVariants(ast, fm_ts)
                             //val includeStructFilename = opt.getincludeStructFilename()
                             stopWatch.start("ifdeftoif")
-                            println("ifdeftoif started.")
+                            println("ifdeftoif started")
                             var i: IfdefToIf = null
                             if (opt.ifdeftoifstatistics) {
                                 i = new IfdefToIf with IfdefToIfStatistics
