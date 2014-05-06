@@ -1096,12 +1096,14 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                             List(Opt(trueF, transformRecursive(convertEnumId(replaceOptAndId(e, o.feature), o.feature), o.feature.and(currentContext))))
                                         }
                                     case e@Enumerator(_, Some(expr)) =>
+                                        val exprFeatures = computeFeaturesForDuplication(expr, o.feature.and(currentContext))
                                         if (!features.isEmpty) {
-                                            features.map(x => Opt(trueF, transformRecursive(convertEnumId(replaceOptAndId(e, x), x), x)))
+                                            countDuplications(o.entry, features.size, isTopLevel)
+                                            features.map(x => Opt(trueF, transformRecursive(convertEnumId(replaceOptAndId(convertToCondExpr(e, exprFeatures, o.feature.and(currentContext)), x), x), x)))
                                         } else if (ft.equals(trueF)) {
-                                            List(transformRecursive(o, currentContext))
+                                            List(transformRecursive(Opt(trueF, convertToCondExpr(e, exprFeatures, o.feature.and(currentContext))), currentContext))
                                         } else {
-                                            List(Opt(trueF, transformRecursive(convertEnumId(replaceOptAndId(e, o.feature), o.feature), o.feature.and(currentContext))))
+                                            List(Opt(trueF, transformRecursive(convertEnumId(replaceOptAndId(convertToCondExpr(e, exprFeatures, o.feature.and(currentContext)), o.feature), o.feature), o.feature.and(currentContext))))
                                         }
                                     case sd@StructDeclaration(qual, decl) =>
                                         if (!features.isEmpty) {
@@ -1429,7 +1431,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 val featureLists = List(computationHelper(nfd.specifiers, curCtx), computationHelper(nfd.declarator, curCtx), computationHelper(nfd.parameters, curCtx))
                 val result = handleLists(featureLists, curCtx)
                 result
-            case Enumerator(id, Some(expr: Expr)) =>
+            case Enumerator(id: Id, _) =>
                 computationHelper(id, curCtx)
             case k =>
                 computationHelper(k, curCtx)
