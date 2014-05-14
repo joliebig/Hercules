@@ -259,7 +259,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             ts.debugInterface(interface, new File(opt.getDebugInterfaceFilename))
     }
 
-    private def lex(opt: FrontendOptions): TokenReader[CToken, CTypeContext] = CLexer.prepareTokens(new lexer.Main().run(opt, opt.parse))
+    def lex(opt: FrontendOptions): TokenReader[CToken, CTypeContext] = {
+        val tokens = new lexer.LexerFrontend().run(opt, opt.parse)
+        val in = CLexerAdapter.prepareTokens(tokens)
+        in
+    }
 
     private def serializeAST(ast: AST, filename: String) {
         val fw = new ObjectOutputStream(new GZIPOutputStream(new FileOutputStream(filename)))

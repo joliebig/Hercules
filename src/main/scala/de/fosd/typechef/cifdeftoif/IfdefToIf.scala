@@ -197,7 +197,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def getAstFromFile(fileToAnalyse: File): TranslationUnit = {
         def parseFile(stream: InputStream, file: String, dir: String): TranslationUnit = {
             val ast: AST = new ParserMain(new CParser).parserMain(
-                () => CLexer.lexStream(stream, file, Collections.singletonList(dir), null), new CTypeContext, SilentParserOptions)
+                () => CLexerAdapter.lexStream(stream, file, Collections.singletonList(dir), null), new CTypeContext, SilentParserOptions)
             ast.asInstanceOf[TranslationUnit]
         }
         val fis = new FileInputStream(fileToAnalyse)
