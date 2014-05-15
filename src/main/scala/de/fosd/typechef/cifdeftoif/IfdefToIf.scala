@@ -543,7 +543,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Also filters out features which are not satisfiable according to the feature model and the given context.
      */
     def getFeatureCombinationsFiltered(fList: List[FeatureExpr], context: FeatureExpr): List[FeatureExpr] = {
-        getFeatureCombinations(fList).filter(x => x.isSatisfiable() && x.isSatisfiable(fm.and(context)))
+        getFeatureCombinations(fList).filterNot(x => x.and(context).isSatisfiable() || x.isSatisfiable(fm))
     }
     /**
      * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
