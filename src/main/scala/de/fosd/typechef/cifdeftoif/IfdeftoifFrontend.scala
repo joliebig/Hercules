@@ -88,8 +88,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         val stopWatch = new StopWatch()
         stopWatch.start("loadFM")
 
-        val fm = opt.getLexerFeatureModel().and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
-        opt.setFeatureModel(fm) //otherwise the lexer does not get the updated feature model with file presence conditions
+        // @fgarbe: did merge with christian's master - we are using the full fm instead of the small fm.
+        val fm = opt.getFullFeatureModel().and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
+        opt.setFullFeatureModel(fm) //otherwise the lexer does not get the updated feature model with file presence conditions
         if (!opt.getFilePresenceCondition.isSatisfiable(fm)) {
             println("file has contradictory presence condition. existing.") //otherwise this can lead to strange parser errors, because True is satisfiable, but anything else isn't
             return
@@ -108,7 +109,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             if (ast == null) {
                 //no parsing and serialization if read serialized ast
                 val parserMain = new ParserMain(new CParser(fm))
-                ast = parserMain.parserMain(in, opt)
+                ast = parserMain.parserMain(in, opt, fm)
                 ast = prepareAST[TranslationUnit](ast)
 
                 if (ast != null && opt.serializeAST) {
@@ -119,7 +120,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             }
 
             if (ast != null) {
-                val fm_ts = opt.getTypeSystemFeatureModel.and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
+                val fm_ts = opt.getFullFeatureModel.and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
 
                 // some dataflow analyses require typing information
                 val ts = new CTypeSystemFrontend(ast, fm_ts, opt) with CTypeCache with CDeclUse
