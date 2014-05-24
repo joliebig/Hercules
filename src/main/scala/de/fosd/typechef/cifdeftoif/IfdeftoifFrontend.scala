@@ -4,13 +4,14 @@ package de.fosd.typechef.cifdeftoif
 import de.fosd.typechef.parser.c._
 import de.fosd.typechef.featureexpr.FeatureModel
 import de.fosd.typechef.options._
-import de.fosd.typechef.{ErrorXML, lexer}
+import de.fosd.typechef.ErrorXML
 import java.io._
 import de.fosd.typechef.parser.TokenReader
 import java.util.zip.{GZIPOutputStream, GZIPInputStream}
 import de.fosd.typechef.parser.c.CTypeContext
 import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
 import de.fosd.typechef.crewrite._
+import de.fosd.typechef.lexer.LexerFrontend
 
 
 object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
@@ -88,10 +89,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         val stopWatch = new StopWatch()
         stopWatch.start("loadFM")
 
-        // @fgarbe: did merge with christian's master - we are using the full fm instead of the small fm.
-        val fm = opt.getFullFeatureModel().and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
-        opt.setFullFeatureModel(fm) //otherwise the lexer does not get the updated feature model with file presence conditions
-        if (!opt.getFilePresenceCondition.isSatisfiable(fm)) {
+        val fullFM = opt.getFullFeatureModel().and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
+        val parseFM = opt.getSmallFeatureModel().and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
+        opt.setSmallFeatureModel(parseFM) //otherwise the lexer does not get the updated feature model with file presence conditions
+        opt.setFullFeatureModel(fullFM) //otherwise the lexer does not get the updated feature model with file presence conditions
+        if (!opt.getFilePresenceCondition.isSatisfiable(fullFM)) {
             println("file has contradictory presence condition. existing.") //otherwise this can lead to strange parser errors, because True is satisfiable, but anything else isn't
             return
         }
@@ -108,8 +110,8 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
             if (ast == null) {
                 //no parsing and serialization if read serialized ast
-                val parserMain = new ParserMain(new CParser(fm))
-                ast = parserMain.parserMain(in, opt, fm)
+                val parserMain = new ParserMain(new CParser(parseFM))
+                ast = parserMain.parserMain(in, opt, fullFM)
                 ast = prepareAST[TranslationUnit](ast)
 
                 if (ast != null && opt.serializeAST) {
@@ -137,7 +139,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                     if (opt.decluse) {
                         if (typeCheckStatus) {
                             val i = new IfdefToIf
-                            val fw = new FileWriter(i.outputStemToFileName(opt.getOutputStem()) + ".decluse")
+                            val fw = new FileWriter(i.basename(opt.getOutputStem()) + ".decluse")
                             fw.write(ts.checkDefuse(ast, ts.getDeclUseMap, ts.getUseDeclMap, fm_ts)._1)
                             fw.close()
                             println(ast)
@@ -161,11 +163,12 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             } else {
                                 i = new IfdefToIf
                             }
+                            i.setParseFM(parseFM)
                             val defUseMap = ts.getDeclUseMap
                             val useDefMap = ts.getUseDeclMap
-                            val fileName = i.outputStemToFileName(opt.getOutputStem())
+                            val fileName = i.basename(opt.getOutputStem())
                             val checkIfdefToIfResult = !opt.ifdeftoifnocheck
-                            val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fm, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
+                            val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
                             tuple._1 match {
                                 case None =>
                                     println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result !!")
@@ -260,11 +263,8 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             ts.debugInterface(interface, new File(opt.getDebugInterfaceFilename))
     }
 
-    def lex(opt: FrontendOptions): TokenReader[CToken, CTypeContext] = {
-        val tokens = new lexer.LexerFrontend().run(opt, opt.parse)
-        val in = CLexerAdapter.prepareTokens(tokens)
-        in
-    }
+    private def lex(opt: FrontendOptions): TokenReader[CToken, CTypeContext] =
+        CLexerAdapter.prepareTokens(new LexerFrontend().run(opt, opt.parse))
 
     private def serializeAST(ast: AST, filename: String) {
         val fw = new ObjectOutputStream(new GZIPOutputStream(new FileOutputStream(filename)))

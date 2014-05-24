@@ -157,7 +157,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val defUseMap = getDeclUseMap
         val useDefMap = getUseDeclMap
 
-        val optionsAst = i.getOptionFile(source_ast)
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
         val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
         ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
@@ -1720,15 +1720,15 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val mixedVariableContradiction = FunctionDef(List(Opt(fa, StaticSpecifier()), Opt(fa.not().and(fb.not()), VoidSpecifier()), Opt(fc.and(fa.not()).and(fb).and(fb.or(fa)), IntSpecifier()), Opt(fa.not().and(fb).and(fc.not().or(fa).or(fb.not())).and(fb.or(fa)), DoubleSpecifier()), Opt(fx, StaticSpecifier())), AtomicNamedDeclarator(List(), Id("main"), List()), List(), CompoundStatement(List()))
 
 
-        val oneContradictionResult = i.computeFeaturesForDuplication(oneVariableContradiction, FeatureExprFactory.True)
-        val twoContradictionResult = i.computeFeaturesForDuplication(twoVariableContradiction, FeatureExprFactory.True)
-        val threeContradictionResult = i.computeFeaturesForDuplication(threeVariableContradiction, FeatureExprFactory.True)
+        val oneContradictionResult = i.computeFExpsForDuplication(oneVariableContradiction, FeatureExprFactory.True)
+        val twoContradictionResult = i.computeFExpsForDuplication(twoVariableContradiction, FeatureExprFactory.True)
+        val threeContradictionResult = i.computeFExpsForDuplication(threeVariableContradiction, FeatureExprFactory.True)
 
-        val oneComputationResult = i.computeFeaturesForDuplication(oneVariableComputation, FeatureExprFactory.True)
-        val twoComputationResult = i.computeFeaturesForDuplication(twoVariableComputation, FeatureExprFactory.True)
-        val threeComputationResult = i.computeFeaturesForDuplication(threeVariableComputation, FeatureExprFactory.True)
+        val oneComputationResult = i.computeFExpsForDuplication(oneVariableComputation, FeatureExprFactory.True)
+        val twoComputationResult = i.computeFExpsForDuplication(twoVariableComputation, FeatureExprFactory.True)
+        val threeComputationResult = i.computeFExpsForDuplication(threeVariableComputation, FeatureExprFactory.True)
 
-        val mixedComputationResult = i.computeFeaturesForDuplication(mixedVariableContradiction, FeatureExprFactory.True)
+        val mixedComputationResult = i.computeFExpsForDuplication(mixedVariableContradiction, FeatureExprFactory.True)
 
         println("Amount of feature expressions: " + oneContradictionResult.size + ", in: " + oneContradictionResult)
         println("Amount of feature expressions: " + twoContradictionResult.size + ", in: " + twoContradictionResult)
