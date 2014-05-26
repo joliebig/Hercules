@@ -100,7 +100,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         //println("\n" + PrettyPrinter.print(new_ast._1))
 
         val startPrettyPrinting = System.currentTimeMillis()
-        PrettyPrinter.printF(new_ast._1, singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+        PrettyPrinter.printD(new_ast._1, singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
         val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
         print("\t--Printed--\n")
         if (writeAst) {
@@ -109,7 +109,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
 
         if (makeAnalysis) {
             //if (!(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).exists) {
-            PrettyPrinter.printF(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
+            PrettyPrinter.printD(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
             //}
             /*val linesOfCodeBefore = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).getLines().size
             val linesOfCodeAfter = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".ifdeftoif")).getLines().size
@@ -150,6 +150,74 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         } else {
             0
         }
+    }
+
+    @Test
+    def liftingExpr() {
+        val fa = FeatureExprFactory.createDefinedExternal("a")
+        val s = parseExpr(
+            """
+            a
+            #ifdef B
+            +b
+            #endif
+            """.stripMargin)
+        val o = Opt(fa, s)
+        val env = CASTEnv.createASTEnv(o)
+        val r = i.liftVariability(s, env)
+        println(r)
+    }
+
+    @Test
+    def liftingDecl() {
+        val fa = FeatureExprFactory.createDefinedExternal("a")
+        val s = parseDecl(
+            """
+            int i = 1
+            #ifdef B
+            +b
+            #endif
+            ;
+            """.stripMargin)
+        val o = Opt(fa, s)
+        val env = CASTEnv.createASTEnv(o)
+        val r = i.liftVariability(s, env)
+        println(r)
+    }
+
+    @Test
+    def liftingStmt() {
+        val fa = FeatureExprFactory.createDefinedExternal("a")
+        val s = parseStmt(
+            """
+            i = 1
+            #ifdef B
+            +b
+            #endif
+            ;
+            """.stripMargin)
+        val o = Opt(fa, s)
+        val env = CASTEnv.createASTEnv(o)
+        val r = i.liftVariability(s, env)
+        println(r)
+    }
+
+    @Test
+    def liftingStmtChoice() {
+        val fa = FeatureExprFactory.createDefinedExternal("a")
+        val s1 = parseStmt(
+            """
+            i = 1
+            #ifdef B
+            +b
+            #endif
+            ;
+            """.stripMargin)
+        val s2 = parseStmt(";")
+        val c = Choice(fa, One(s1), One(s2))
+        val env = CASTEnv.createASTEnv(c)
+        val r = i.liftVariability(s1, env)
+        println(r)
     }
 
     def testAst(source_ast: TranslationUnit): String = {
@@ -705,13 +773,85 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         println(testAst(source_ast))
     }
 
-    @Ignore def array_test {
+    @Test def array_test {
         val source_ast = getAST( """
-      static const unsigned opt_flags[] = {
-        #ifdef CONFIG_ACPI_PROCFS_POWER
-        SORT_SIZE,
+        static const unsigned opt_flags[] = {
+        	LIST_SHORT | STYLE_COLUMNS, /* C */
+        	DISP_HIDDEN | DISP_DOT,     /* a */
+        	DISP_NOLIST,                /* d */
+        	LIST_INO,                   /* i */
+        	LIST_LONG | STYLE_LONG,     /* l - remember LS_DISP_HR in mask! */
+        	LIST_SHORT | STYLE_SINGLE,  /* 1 */
+        	0,                          /* g (don't show owner) - handled via OPT_g */
+        	LIST_ID_NUMERIC,            /* n */
+        	LIST_BLOCKS,                /* s */
+        	DISP_ROWS,                  /* x */
+        	0,                          /* Q (quote filename) - handled via OPT_Q */
+        	DISP_HIDDEN,                /* A */
+
+        #if (definedEx(CONFIG_FEATURE_FIND_CONTEXT) || definedEx(CONFIG_SELINUX))
+        1
         #endif
+        #if (!definedEx(CONFIG_FEATURE_FIND_CONTEXT) && !definedEx(CONFIG_SELINUX))
         0
+        #endif
+         * LIST_CONTEXT, /* k (ignored if !SELINUX) */
+        #if (definedEx(CONFIG_FTPD) || definedEx(CONFIG_FEATURE_LS_TIMESTAMPS))
+        	TIME_CHANGE | (
+        #if definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        1
+        #endif
+        #if !definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        0
+        #endif
+         * SORT_CTIME),   /* c */
+        	LIST_FULLTIME,              /* e */
+
+        #if definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        1
+        #endif
+        #if !definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        0
+        #endif
+         * SORT_MTIME,   /* t */
+        	TIME_ACCESS | (
+        #if definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        1
+        #endif
+        #if !definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        0
+        #endif
+         * SORT_ATIME),   /* u */
+        #endif
+        #if definedEx(CONFIG_FEATURE_LS_SORTFILES)
+        	SORT_SIZE,                  /* S */
+        	SORT_EXT,                   /* X */
+        	SORT_REVERSE,               /* r */
+        	SORT_VERSION,               /* v */
+        #endif
+        #if definedEx(CONFIG_FEATURE_LS_FILETYPES)
+        	LIST_FILETYPE | LIST_EXEC,  /* F */
+        	LIST_FILETYPE,              /* p */
+        #endif
+        #if definedEx(CONFIG_FEATURE_LS_FOLLOWLINKS)
+        	FOLLOW_LINKS,               /* L */
+        #endif
+        #if definedEx(CONFIG_FEATURE_LS_RECURSIVE)
+        	DISP_RECURSIVE,             /* R */
+        #endif
+        #if definedEx(CONFIG_FEATURE_HUMAN_READABLE)
+        	LS_DISP_HR,                 /* h */
+        #endif
+        #if (definedEx(CONFIG_FEATURE_FIND_CONTEXT) || definedEx(CONFIG_SELINUX))
+        	LIST_MODEBITS|LIST_NLINKS|LIST_CONTEXT|LIST_SIZE|LIST_DATE_TIME, /* K */
+        #endif
+        #if (definedEx(CONFIG_FEATURE_FIND_CONTEXT) || definedEx(CONFIG_SELINUX))
+        	LIST_MODEBITS|LIST_ID_NAME|LIST_CONTEXT, /* Z */
+        #endif
+        	(1U<<31)
+        	/* options after Z are not processed through opt_flags:
+        	 * T, w - ignored
+        	 */
         };
                                  """);
         println(source_ast)
@@ -1649,7 +1789,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
                     case None =>
                         println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result !!")
                     case Some(x) =>
-                        //PrettyPrinter.printF(x, path ++ fileNameWithoutExtension ++ ".ifdeftoif")
+                        //PrettyPrinter.printD(x, path ++ fileNameWithoutExtension ++ ".ifdeftoif")
                         println("++Transformed: " ++ fileName ++ "++\t\t --in " + tuple._2 ++ " ms--")
                 }
 
@@ -1660,10 +1800,10 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
 
                 val startPrettyPrinting = System.currentTimeMillis()
                 if (writeFilesIntoIfdeftoifFolder) {
-                    PrettyPrinter.printF(new_ast._1, path ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+                    PrettyPrinter.printD(new_ast._1, path ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
                 } else {
                     //writeToTextFile(filePathWithoutExtension ++ ".ifdeftoif", transformedCode)
-                    PrettyPrinter.printF(new_ast._1, filePathWithoutExtension ++ "_ifdeftoif.c")
+                    PrettyPrinter.printD(new_ast._1, filePathWithoutExtension ++ "_ifdeftoif.c")
                 }
                 val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
                 //print("\t--Printed--\n")

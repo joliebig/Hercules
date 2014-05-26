@@ -1,7 +1,7 @@
 package de.fosd.typechef.cifdeftoif
 
-import scala.collection.mutable.ListBuffer
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 import java.util.{Collections, IdentityHashMap}
 import java.io._
@@ -17,7 +17,6 @@ import de.fosd.typechef.featureexpr.sat._
 import de.fosd.typechef.conditional._
 import de.fosd.typechef.lexer.FeatureExprLib
 import de.fosd.typechef.typesystem.{IdentityIdHashMap, CTypeSystemFrontend}
-
 import de.fosd.typechef.error.TypeChefError
 import de.fosd.typechef.ConfigurationHandling
 
@@ -407,7 +406,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         val externDeclaration = Opt(True, Declaration(List(Opt(True, ExternSpecifier()), Opt(True, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(True, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
         val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath))
 
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath)
+        PrettyPrinter.printD(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath)
     }
 
     /**
@@ -436,6 +435,102 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         } else {
             ""
         }
+    }
+
+    /**
+     * Function to lift/step up variability to the next parental variability node (Opt[_] or Conditional[_]).
+     * This should simplify the transformation of #ifdef-to-if a lot because it provides a general pattern for
+     * code duplication required as a result of insufficient transformation capabilities of low-level #ifdefs to
+     * if statements.
+     *
+     * We always step up to the next parental variability node and resolve all variability (Opt[_] and Conditional[_])
+     * in sub-elements the given input AST element a. We consider two scenarios during the transformation process:
+     * 1. Lifting to the next Opt[_] o; replace o with List[Opt[_]].
+     * 2. Lifting up to the next One[_] (leave node of Conditional[_]) c; replace c with a Choice[_].
+     *
+     * The function returns Left for Conditional[_] and Right for Opt[_]. Both include the element to replace in the
+     * translation unit and the replacement (i.e., Choice[_] and List[Opt[_]]).
+     */
+    def liftVariability(a: AST, env: ASTEnv) = {
+
+        def validConfigurations(x: Product) = {
+            // collect variability in sub-elements and compute all satisfiable configurations
+            val ps = collectConfigurations(x, env)
+
+            // generate power set to determine all possible combinations
+            ps.subsets.toSet[Set[FeatureExpr]]
+                // create configurations and filter unsatisfiable ones
+                .map(s => s.fold(FeatureExprFactory.True)(_ and _)).filter(_.isSatisfiable(fm))
+        }
+
+        // get parental variability node
+        parentVNode(a, env) match {
+            case Left(o: One[_]) =>
+                val cs = validConfigurations(o)
+
+                // duplicate the variable, parental node and zip each element with a valid configuration
+                val ol = List.fill(cs.size)(o).zip(cs)
+
+                // remove variability from the duplicated nodes based on the given configuration
+                val pol = ol.map { e => Opt(e._2, purgeVariability(e._1, e._2, env))}
+
+                // create incrementally a Conditional[_] tree from the duplicated One[_] entries
+                // we use the head element as the seed for the tree creation
+                val cctx: FeatureExpr = pol.head.feature
+                val cinit: Conditional[Any] = pol.head.entry
+                val res = pol.tail.foldLeft(cinit)((t, e) => ConditionalLib.insert(t, cctx, e.feature, e.entry.value))
+
+                Left(o, res)
+
+            case Right(o: Opt[_]) =>
+                val cs = validConfigurations(o)
+
+                // duplicate the variable, parental node and zip each element with a valid configuration
+                val ol = List.fill(cs.size)(o).zip(cs)
+
+                // remove variability from the duplicated nodes based on the given configuration
+                val res = ol.map {
+                    e =>
+                        val no = purgeVariability(e._1, e._2, env)
+                        no.copy(feature = no.feature.and(e._2))
+                }
+
+                Right(o, res)
+        }
+    }
+
+    /**
+     * Replaces variability nodes in o with non-variable nodes (Opt(True, ...) or One(_))
+     * according to the given feature expression config..
+     */
+    private def purgeVariability[T](o: T, config: FeatureExpr, env: ASTEnv): T = {
+        manytd(rule {
+            case l: List[Opt[_]] => l.flatMap {
+                e =>
+                    val fexp = env.featureExpr(e.entry)
+                    if (config.implies(fexp).isTautology(fm))
+                        Some(e.copy(feature = FeatureExprFactory.True))
+                    else
+                        None
+            }
+            case Choice(_, tb, eb) =>
+                val fexp = env.featureExpr(tb)
+                if (config.implies(fexp).isTautology(fm))
+                    tb
+                else
+                    eb
+        })(o).getOrElse(o).asInstanceOf[T]
+    }
+
+    /**
+     * Return all configurations that arise from variability in sub-elements of a.
+     */
+    private def collectConfigurations(a: Product, env: ASTEnv) = {
+        var res: Set[Set[FeatureExpr]] = Set()
+        manytd(query {
+            case Opt(_, x) => res += env.featureSet(x)
+        })(a)
+        res.map(s => s.fold(FeatureExprFactory.True)(_ and _))
     }
 
     /**
@@ -564,7 +659,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Also filters out features which are not satisfiable according to the feature model and the given context.
      */
     def getFeatureCombinationsFiltered(fList: List[FeatureExpr], context: FeatureExpr): List[FeatureExpr] = {
-        getFeatureCombinations(fList).filterNot(x => x.and(context).isSatisfiable() || x.isSatisfiable(fm))
+        getFeatureCombinations(fList).filter(x => x.and(context).isSatisfiable(fm))
     }
     /**
      * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
@@ -940,7 +1035,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         } else {
             ifdeftoif_file = newPath
         }
-        PrettyPrinter.printF(result_ast, ifdeftoif_file, createIncludeDirective(externOptionStructPath))
+        PrettyPrinter.printD(result_ast, ifdeftoif_file, createIncludeDirective(externOptionStructPath))
         println("Printed ifdeftoif to file " + ifdeftoif_file)
 
         if (!typecheckResult) {
@@ -961,7 +1056,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             } else {
 
                 // Overwrite file with #include statement with a file which possesses the ifdeftoif config struct
-                PrettyPrinter.printF(typecheck_ast, ifdeftoif_file)
+                PrettyPrinter.printD(typecheck_ast, ifdeftoif_file)
                 val result_ast_with_position = getAstFromFile(new File(ifdeftoif_file))
                 // TODO fgarbe: New solution required!
                 if (result_ast_with_position == null) {
@@ -2024,11 +2119,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Transforms given declaration. Transformation has different effects, declaration could be duplicated / renamed etc.
      */
-    def handleDeclarations(optDeclaration: Opt[Declaration], currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
+    def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
                 val declarationFeature = optDeclaration.feature
-                val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(currentContext) && currentContext.implies(x.feature).isTautology(fm)) x
+                val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
                 else {
                     val relevantFeature = x.feature.and(declarationFeature)
                     x match {
@@ -2064,9 +2159,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 })
 
                 val tmpDecl = Declaration(newDeclSpecs, init)
-                val features = computeFExpsForDuplication(tmpDecl, declarationFeature.and(currentContext), isTopLevel)
-                if ((features.isEmpty) && isTopLevel && !currentContext.and(optDeclaration.feature).equivalentTo(trueF, fm)) {
-                    if (isTopLevel && !currentContext.and(optDeclaration.feature).equivalentTo(trueF, fm)) {
+                val features = computeFExpsForDuplication(tmpDecl, declarationFeature.and(curCtx), isTopLevel)
+                if ((features.isEmpty) && isTopLevel && !curCtx.and(optDeclaration.feature).equivalentTo(trueF, fm)) {
+                    if (isTopLevel && !curCtx.and(optDeclaration.feature).equivalentTo(trueF, fm)) {
                         if (declSpecs.exists(x => x.entry.isInstanceOf[TypedefSpecifier])) {
                             incOptionalTypedefs
                         } else if (declSpecs.exists(x => x.entry.isInstanceOf[StructOrUnionSpecifier])) {
@@ -2091,7 +2186,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 } else {
                     val tst = replaceOptAndId(tmpDecl, declarationFeature)
                     val tst2 = convertId(tst, declarationFeature)
-                    val result = List(Opt(trueF, transformRecursive(tst2)))
+                    val result = List(Opt(trueF, transformRecursive(tst2, curCtx, isTopLevel)))
                     result
                 }
         }
