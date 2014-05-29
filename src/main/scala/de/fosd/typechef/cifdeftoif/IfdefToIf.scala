@@ -451,7 +451,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * The function returns Left for Conditional[_] and Right for Opt[_]. Both include the element to replace in the
      * translation unit and the replacement (i.e., Choice[_] and List[Opt[_]]).
      */
-    def liftVariability(a: AST, env: ASTEnv) = {
+    def liftVariability(a: AST, env: ASTEnv): Either[_, _] = {
 
         def validConfigurations(x: Product) = {
             // collect variability in sub-elements and compute all satisfiable configurations
@@ -2122,6 +2122,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
+                if (!init.isEmpty && init.head.entry.getName.equals("uncompress_main")) {
+                    print("")
+                }
                 val declarationFeature = optDeclaration.feature
                 val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
                 else {
@@ -2185,11 +2188,19 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     result
                 } else {
                     val tst = replaceOptAndId(tmpDecl, declarationFeature)
-                    val tst2 = convertId(tst, declarationFeature)
-                    val result = List(Opt(trueF, transformRecursive(tst2, curCtx, isTopLevel)))
+                    //val tst2 = convertId(tst, declarationFeature)
+                    val result = List(Opt(trueF, transformRecursive(tst, curCtx, isTopLevel)))
                     result
                 }
         }
+    }
+
+    /**
+     * Determines whether given declaration is an extern declaration. This can be used to avoid renaming extern
+     * function declarations.
+     */
+    def isExternDeclaration(optDeclaration: Opt[Declaration]): Boolean = {
+        optDeclaration.entry.init.exists(x => x.entry.declarator.extensions.exists(y => y.entry.isInstanceOf[DeclIdentifierList] || y.entry.isInstanceOf[DeclParameterDeclList])) && optDeclaration.entry.declSpecs.exists(x => x.entry.isInstanceOf[ExternSpecifier])
     }
 
     /**
@@ -2283,9 +2294,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     case fd@FunctionDef(spec, decl, par, stmt) =>
                         val features = computeFExpsForDuplication(fd, currentContext).filterNot(FeatureExprFactory.False.equals(_))
                         if (features.isEmpty) {
-                            List(Opt(trueF, FunctionDef(replaceOptAndId(spec, currentContext), replaceOptAndId(convertStructId(decl, currentContext), currentContext), replaceOptAndId(par, currentContext), transformRecursive(replaceOptAndId(stmt, currentContext), currentContext))))
+                            List(Opt(trueF, FunctionDef(replaceOptAndId(spec, currentContext), replaceOptAndId(decl, currentContext), replaceOptAndId(par, currentContext), transformRecursive(replaceOptAndId(stmt, currentContext), currentContext))))
                         } else {
-                            features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(convertStructId(decl, x), x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
+                            if (!isMainFunction(fd.getName) && features.size > 1) {
+                                // rename functions
+                                features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(convertStructId(decl, x), x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
+                            } else {
+                                // don't rename functions if they are only optional [features.size == 1] or they are the main function
+                                features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(decl, x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
+                            }
                         }
                     case nfd@NestedFunctionDef(isAuto, spec, decl, par, stmt) =>
                         val features = computeFExpsForDuplication(nfd, currentContext)
