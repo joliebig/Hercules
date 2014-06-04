@@ -2187,11 +2187,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x), x), x)))
                     result
                 } else {
-                    var tmp = replaceOptAndId(tmpDecl, declarationFeature)
-                    // Skip renaming function forward declarations which are only optional
+                    val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature), declarationFeature)
+                    /*var tmp = replaceOptAndId(tmpDecl, declarationFeature)
+                    / Skip renaming function forward declarations which are only optional
                     if (!isFunctionForwardDeclaration(init)) {
                         tmp = convertId(tmp, declarationFeature)
-                    }
+                    }*/
                     val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel)))
                     result
                 }
