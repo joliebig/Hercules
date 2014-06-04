@@ -95,7 +95,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Data structure which maps usages of variables to their definition(s)
     private var usedef: IdentityIdHashMap = new IdentityIdHashMap(new IdentityHashMap())
     // Data structure which maps presence conditions to numbers used as prefixes in renamings
-    private var featureNumberMap: Map[FeatureExpr, Int] = Map()
+    private var presenceConditionNumberMap: Map[FeatureExpr, Int] = Map()
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
     // Data structure used to map Identifiers, which have to be renamed, to the presence conditions of the renamings
@@ -604,8 +604,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     // TODO fgarbe: Parameter a is unused!
     private def fillIdMap(a: Any) {
-        if (featureNumberMap.size == 0) {
-            featureNumberMap += (trueF -> featureNumberMap.size)
+        if (presenceConditionNumberMap.size == 0) {
+            presenceConditionNumberMap += (trueF -> presenceConditionNumberMap.size)
         }
 
         if (new File(path ++ "featureMap.csv").exists) {
@@ -615,15 +615,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val tuple = x.split(",")
                     val feature = new FeatureExprParser().parse(tuple.head)
                     val number = tuple.tail.head.toInt
-                    featureNumberMap += (feature -> number)
+                    presenceConditionNumberMap += (feature -> number)
                 })
             }
         }
     }
 
     private def updateIdMap(feat: FeatureExpr) = {
-        if (!featureNumberMap.contains(feat)) {
-            featureNumberMap += (feat -> featureNumberMap.size)
+        if (!presenceConditionNumberMap.contains(feat)) {
+            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
         }
     }
 
@@ -634,7 +634,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private def getPrefixFromIdMap(feat: FeatureExpr): String = {
         def getFromIdMap(feat: FeatureExpr): Int = {
             updateIdMap(feat)
-            featureNumberMap.get(feat).get
+            presenceConditionNumberMap.get(feat).get
         }
         "_" + getFromIdMap(feat) + "_"
     }
@@ -666,10 +666,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * ifdeftoif transformation to retrieve the context of an already renamed identifier.
      */
     private def getFeatureForId(id: Int): Option[FeatureExpr] = {
-        if (featureNumberMap.size < id || id < 0) {
+        if (presenceConditionNumberMap.size < id || id < 0) {
             None
         } else {
-            val it = featureNumberMap.iterator
+            val it = presenceConditionNumberMap.iterator
             while (it.hasNext) {
                 val next = it.next()
                 if (next._2.equals(id)) {
@@ -1045,7 +1045,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             println("Typechecking result")
             val typeCheckSuccessful = checkAstSilent(typecheck_ast)
 
-            val featureMap = featureNumberMap.-(trueF).map(x => x._1.toTextExpr + "," + x._2) mkString "\n"
+            val featureMap = presenceConditionNumberMap.-(trueF).map(x => x._1.toTextExpr + "," + x._2) mkString "\n"
             writeToFile(path ++ "featureMap.csv", featureMap)
 
             if (typeCheckSuccessful) {
@@ -1318,8 +1318,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     }
                                 // TODO fgarbe: Transformation required!
                                 case _: TypelessDeclaration => List(o)
-                                // We do not support transformations of pragmas!
-                                case Pragma(_) => List(o)
+                                // We do not support transformations of pragmas! We still remove their variability though.
+                                case p@Pragma(_) => List(Opt(trueF, p))
                                 case _: EmptyStatement => List()
                                 case _: EmptyExternalDef => List()
                                 case cs: CompoundStatement =>
@@ -2173,7 +2173,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             incOptionalEnums
                         } else {
                             // Function forward declarations
-                            if (init.exists(x => x.entry.declarator.extensions.exists(y => y.entry.isInstanceOf[DeclIdentifierList] || y.entry.isInstanceOf[DeclParameterDeclList]))) {
+                            if (isFunctionForwardDeclaration(init)) {
                                 incOptionalForwardFunctions()
                             } else {
                                 incOptionalVariables
@@ -2187,12 +2187,24 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x), x), x)))
                     result
                 } else {
-                    val tst = replaceOptAndId(tmpDecl, declarationFeature)
-                    //val tst2 = convertId(tst, declarationFeature)
-                    val result = List(Opt(trueF, transformRecursive(tst, curCtx, isTopLevel)))
+                    var tmp = replaceOptAndId(tmpDecl, declarationFeature)
+                    // Skip renaming function forward declarations which are only optional
+                    if (!isFunctionForwardDeclaration(init)) {
+                        tmp = convertId(tmp, declarationFeature)
+                    }
+                    val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel)))
                     result
                 }
         }
+    }
+
+    /**
+     * Determines if given InitDeclarators from a Declaration belong to a function forward declaration or not.
+     * typedef unsigned long uoff_t; -> false
+     * int main(int argc, char *+argv); -> true
+     */
+    def isFunctionForwardDeclaration(init: List[Opt[InitDeclarator]]): Boolean = {
+        init.exists(x => x.entry.declarator.extensions.exists(y => y.entry.isInstanceOf[DeclIdentifierList] || y.entry.isInstanceOf[DeclParameterDeclList]))
     }
 
     /**
