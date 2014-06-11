@@ -10,11 +10,15 @@ libraryDependencies += "de.fosd.typechef" % "frontend_2.10" % "0.3.6"
 
 libraryDependencies += "de.fosd.typechef" % "sampling_2.10" % "0.3.6"
 
+libraryDependencies += "junit" % "junit" % "4.11" % "test"
+
 libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.0-beta4"
 
 libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.0-beta4"
 
 mainClass in Runtime := Some("de.fosd.typechef.cifdeftoif.IfdeftoifFrontend")
+
+javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
 
 
 //generate ifdeftoif.sh file with full classpath

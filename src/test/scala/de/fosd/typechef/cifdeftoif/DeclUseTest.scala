@@ -7,11 +7,12 @@ import de.fosd.typechef.typesystem._
 import java.io.{FilenameFilter, FileInputStream, File}
 import de.fosd.typechef.parser.c.Id
 import de.fosd.typechef.parser.c.TranslationUnit
+import de.fosd.typechef.cifdeftoif.TestHelper
 
 class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper {
 
-    val decluseTestPath = new File(".").getCanonicalPath() ++ "/CRewrite/src/test/resources/decluse_testfiles/"
-    val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/CRewrite/src/test/resources/ifdeftoif_testfiles/"
+    val decluseTestPath = new File(".").getCanonicalPath() ++ "/src/test/resources/decluse_testfiles/"
+    val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/src/test/resources/ifdeftoif_testfiles/"
 
     @Test def test_cstruct_def_use {
         val source_ast = getAST( """

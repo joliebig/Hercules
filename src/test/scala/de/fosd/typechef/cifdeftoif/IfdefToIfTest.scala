@@ -40,7 +40,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     val busyBoxPath = "../TypeChef-BusyboxAnalysis/busybox-1.18.5/"
     val busyBoxFmPath = "../Typechef-BusyboxAnalysis/"
     val linuxPath = "../TypeChef-LinuxAnalysis"
-    val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/CRewrite/src/test/resources/ifdeftoif_testfiles/"
+    val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/src/test/resources/ifdeftoif_testfiles/"
     val True = FeatureExprFactory.True
     /* val tb = java.lang.management.ManagementFactory.getThreadMXBean
   val time = tb.getCurrentThreadCpuTime // Type long; beware in nanoseconds */
