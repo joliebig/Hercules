@@ -122,15 +122,13 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             }
 
             if (ast != null) {
-                val fm_ts = opt.getFullFeatureModel.and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
-
                 // some dataflow analyses require typing information
-                val ts = new CTypeSystemFrontend(ast, fm_ts, opt) with CTypeCache with CDeclUse
+                val ts = new CTypeSystemFrontend(ast, fullFM, opt) with CTypeCache with CDeclUse
 
                 if (opt.typecheck || opt.writeInterface) {
-                    //PrCDeclUseoductGeneration.typecheckProducts(fm,fm_ts,ast,opt,
+                    //PrCDeclUseoductGeneration.typecheckProducts(fm,fullFM,ast,opt,
                     //logMessage=("Time for lexing(ms): " + (t2-t1) + "\nTime for parsing(ms): " + (t3-t2) + "\n"))
-                    //ProductGeneration.estimateNumberOfVariants(ast, fm_ts)
+                    //ProductGeneration.estimateNumberOfVariants(ast, fullFM)
 
                     stopWatch.start("typechecking")
                     println("type checking")
@@ -140,10 +138,10 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                         if (typeCheckStatus) {
                             val i = new IfdefToIf
                             val fw = new FileWriter(i.basename(opt.getOutputStem()) + ".decluse")
-                            fw.write(ts.checkDefuse(ast, ts.getDeclUseMap, ts.getUseDeclMap, fm_ts)._1)
+                            fw.write(ts.checkDefuse(ast, ts.getDeclUseMap, ts.getUseDeclMap, fullFM)._1)
                             fw.close()
                             println(ast)
-                            println(ts.checkDefuse(ast, ts.getDeclUseMap, ts.getUseDeclMap, fm_ts)._1)
+                            println(ts.checkDefuse(ast, ts.getDeclUseMap, ts.getUseDeclMap, fullFM)._1)
                             println(ts.getDeclUseMap)
                         } else {
                             println("generating the declaration-usage map unsuccessful because of type errors in source file")
@@ -151,9 +149,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                     }
                     if (opt.ifdeftoif) {
                         if (typeCheckStatus) {
-                            //ProductGeneration.typecheckProducts(fm,fm_ts,ast,opt,
+                            //ProductGeneration.typecheckProducts(fm,fullFM,ast,opt,
                             //logMessage=("Time for lexing(ms): " + (t2-t1) + "\nTime for parsing(ms): " + (t3-t2) + "\n"))
-                            //ProductGeneration.estimateNumberOfVariants(ast, fm_ts)
+                            //ProductGeneration.estimateNumberOfVariants(ast, fullFM)
                             //val includeStructFilename = opt.getincludeStructFilename()
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
