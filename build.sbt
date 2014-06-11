@@ -29,7 +29,7 @@ java -ea -Xmx2048M -Xss256M -XX:PermSize=512M -XX:MaxPermSize=1024M  -classpath 
                        """
         val mainStr = main getOrElse error("No main class specified")
         val contents = template.format(cp.files.absString, mainStr)
-        val out = base / "../ifdeftoif.sh"
+        val out = base / "ifdeftoif.sh"
         IO.write(out, contents)
         out.setExecutable(true)
         out
