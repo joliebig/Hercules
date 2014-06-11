@@ -11,7 +11,7 @@ Installation and Usage
 
 Hercules requires a modified version of TypeChef. To install it simply run:
 
-    git clone git@github.com:aJanker/TypeChef.git
+    git clone git://github.com/aJanker/TypeChef.git
     cd TypeChef
     ./sbt clean update compile
     ./sbt mkrun
