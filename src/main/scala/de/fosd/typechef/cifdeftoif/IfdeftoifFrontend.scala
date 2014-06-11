@@ -16,7 +16,7 @@ import de.fosd.typechef.lexer.LexerFrontend
 
 object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
-    private var opt: FrontendOptions = new FrontendOptions()
+    private var opt: IfdefToIfOptions = new IfdefToIfOptions()
 
     private class StopWatch {
         var lastStart: Long = 0
@@ -55,7 +55,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
     }
 
     override def main(args: Array[String]): Unit = {
-        opt = new FrontendOptionsWithConfigFiles()
+        opt = new IfdefToIfOptions()
         try {
             try {
                 opt.parseOptions(args)
@@ -65,7 +65,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
             if (opt.featureConfig) {
                 val i = new IfdefToIf
-                val configPath = opt.getFeatureConfigFilename()
+                val configPath = opt.getFeatureConfigFilename
                 i.writeExternIfdeftoIfStruct(configPath)
                 println("Created extern struct file from configuration at: " + configPath)
                 return
@@ -82,7 +82,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         processFile(opt)
     }
 
-    private def processFile(opt: FrontendOptions) {
+    private def processFile(opt: IfdefToIfOptions) {
         val errorXML = new ErrorXML(opt.getErrorXMLFile)
         opt.setRenderParserError(errorXML.renderParserError)
 
@@ -250,7 +250,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
     }
 
-    private def writeInterface(ast: AST, fm: FeatureModel, opt: FrontendOptions) {
+    private def writeInterface(ast: AST, fm: FeatureModel, opt: IfdefToIfOptions) {
         val ts = new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit], fm, opt) with CTypeCache with CDeclUse
         ts.checkAST()
 
@@ -263,7 +263,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             ts.debugInterface(interface, new File(opt.getDebugInterfaceFilename))
     }
 
-    private def lex(opt: FrontendOptions): TokenReader[CToken, CTypeContext] =
+    private def lex(opt: IfdefToIfOptions): TokenReader[CToken, CTypeContext] =
         CLexerAdapter.prepareTokens(new LexerFrontend().run(opt, opt.parse))
 
     private def serializeAST(ast: AST, filename: String) {
