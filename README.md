@@ -21,5 +21,4 @@ To install the last version of Hercules simply run:
 
     git clone git://github.com/joliebig/Hercules.git
     cd Hercules
-    ./sbt clean update compile
-    ./sbt mkrun
+    ./mkrun.sh
