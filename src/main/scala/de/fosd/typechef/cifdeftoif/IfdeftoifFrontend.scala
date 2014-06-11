@@ -186,62 +186,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                     }
                     ts.errors.map(errorXML.renderTypeError(_))
                 }
-                if (opt.writeInterface) {
-                    stopWatch.start("interfaces")
-                    val interface = ts.getInferredInterface().and(opt.getFilePresenceCondition)
-
-                    stopWatch.start("writeInterfaces")
-                    ts.writeInterface(interface, new File(opt.getInterfaceFilename))
-                    if (opt.writeDebugInterface)
-                        ts.debugInterface(interface, new File(opt.getDebugInterfaceFilename))
-                }
-                if (opt.dumpcfg) {
-                    stopWatch.start("dumpCFG")
-
-                    val cf = new CInterAnalysisFrontend(ast, fm_ts)
-                    val writer = new CFGCSVWriter(new FileWriter(new File(opt.getCCFGFilename)))
-                    val dotwriter = new DotGraph(new FileWriter(new File(opt.getCCFGDotFilename)))
-                    cf.writeCFG(opt.getFile, new ComposedWriter(List(dotwriter, writer)))
-                }
-
-                if (opt.staticanalyses) {
-                    val sa = new CIntraAnalysisFrontend(ast, ts.asInstanceOf[CTypeSystemFrontend with CTypeCache with CDeclUse], fm_ts)
-                    if (opt.warning_double_free) {
-                        stopWatch.start("doublefree")
-                        sa.doubleFree()
-                    }
-                    if (opt.warning_uninitialized_memory) {
-                        stopWatch.start("uninitializedmemory")
-                        sa.uninitializedMemory()
-                    }
-                    if (opt.warning_case_termination) {
-                        stopWatch.start("casetermination")
-                        sa.caseTermination()
-                    }
-                    if (opt.warning_xfree) {
-                        stopWatch.start("xfree")
-                        sa.xfree()
-                    }
-                    if (opt.warning_dangling_switch_code) {
-                        stopWatch.start("danglingswitchcode")
-                        sa.danglingSwitchCode()
-                    }
-                    if (opt.warning_cfg_in_non_void_func) {
-                        stopWatch.start("cfginnonvoidfunc")
-                        sa.cfgInNonVoidFunc()
-                    }
-                    if (opt.warning_stdlib_func_return) {
-                        stopWatch.start("checkstdlibfuncreturn")
-                        sa.stdLibFuncReturn()
-                    }
-                    if (opt.warning_dead_store) {
-                        stopWatch.start("deadstore")
-                        sa.deadStore()
-                    }
-                }
-
             }
-
         }
         stopWatch.start("done")
         errorXML.write()
