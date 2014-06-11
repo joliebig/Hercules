@@ -4,7 +4,7 @@ version := "1.0"
 
 organization := "de.fosd.typechef"
 
-scalaVersion := "2.10.2"
+scalaVersion := "2.10.4"
 
 libraryDependencies += "de.fosd.typechef" % "frontend_2.10" % "0.3.6"
 
@@ -12,14 +12,25 @@ libraryDependencies += "de.fosd.typechef" % "sampling_2.10" % "0.3.6"
 
 libraryDependencies += "junit" % "junit" % "4.11" % "test"
 
+libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test"
+
 libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.0-beta4"
 
 libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.0-beta4"
 
+javacOptions ++= Seq("-Xlint:unchecked")
+
+scalacOptions ++= Seq("-deprecation",
+    "-unchecked",
+    "-optimise",
+    "-Yinline-warnings",
+    "-feature",
+    "-language:postfixOps",
+    "-language:reflectiveCalls",
+    "-language:higherkinds",
+    "-language:implicitConversions")
+
 mainClass in Runtime := Some("de.fosd.typechef.cifdeftoif.IfdeftoifFrontend")
-
-javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
-
 
 //generate ifdeftoif.sh file with full classpath
 TaskKey[File]("mkrun") <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map {
