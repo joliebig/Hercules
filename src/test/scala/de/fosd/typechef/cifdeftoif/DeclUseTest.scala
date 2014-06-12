@@ -1,4 +1,4 @@
-package de.fosd.typechef.crewrite
+package de.fosd.typechef.cifdeftoif
 
 import org.junit.{Ignore, Test}
 import de.fosd.typechef.parser.c._
