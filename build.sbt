@@ -4,21 +4,25 @@ version := "1.0"
 
 organization := "de.fosd.typechef"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.10.2"
 
 libraryDependencies += "de.fosd.typechef" % "frontend_2.10" % "0.3.6"
 
 libraryDependencies += "de.fosd.typechef" % "sampling_2.10" % "0.3.6"
 
-libraryDependencies += "junit" % "junit" % "4.11" % "test"
-
 libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test"
+
+libraryDependencies += "junit" % "junit" % "4.11"
 
 libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.0-beta4"
 
 libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.0-beta4"
 
 javacOptions ++= Seq("-Xlint:unchecked")
+
+javacOptions ++= Seq("-source", "1.6", "-target", "1.6")
+
+scalacOptions += "-target:jvm-1.6"
 
 scalacOptions ++= Seq("-deprecation",
     "-unchecked",
