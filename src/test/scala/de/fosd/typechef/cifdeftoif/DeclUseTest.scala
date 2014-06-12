@@ -1,4 +1,4 @@
-package de.fosd.typechef.crewrite
+package de.fosd.typechef.cifdeftoif
 
 import org.junit.{Ignore, Test}
 import de.fosd.typechef.parser.c._
@@ -7,7 +7,6 @@ import de.fosd.typechef.typesystem._
 import java.io.{FilenameFilter, FileInputStream, File}
 import de.fosd.typechef.parser.c.Id
 import de.fosd.typechef.parser.c.TranslationUnit
-import de.fosd.typechef.cifdeftoif.TestHelper
 
 class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper {
 
@@ -256,7 +255,7 @@ class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse
         runDefUseOnAst(source_ast)
     }
 
-    @Test def test_decompress_unxz_pi {
+    @Ignore def test_decompress_unxz_pi {
         val source_ast = getAstFromPi(new File("../TypeChef-BusyboxAnalysis/busybox-1.18.5/archival/libarchive/decompress_unxz.pi"))
         val result = runDefUseOnAst(source_ast)
         val numberOfDefinitions = 6815
@@ -266,7 +265,7 @@ class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse
         assert(result ==(numberOfDefinitions + numberOfBuiltinFunctions, numberOfEntries, numberOfVariableIds))
     }
 
-    @Test def test_loadfont_pi {
+    @Ignore def test_loadfont_pi {
         val source_ast = getAstFromPi(new File("../TypeChef-BusyboxAnalysis/busybox-1.18.5/console-tools/loadfont.pi"))
         val result = runDefUseOnAst(source_ast)
         val numberOfDefinitions = 6408
@@ -276,7 +275,7 @@ class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse
         assert(result ==(numberOfDefinitions + numberOfBuiltinFunctions, numberOfEntries, numberOfVariableIds))
     }
 
-    @Test def test_inetd_pi {
+    @Ignore def test_inetd_pi {
         val source_ast = getAstFromPi(new File("../TypeChef-BusyboxAnalysis/busybox-1.18.5/networking/inetd.pi"))
         val result = runDefUseOnAst(source_ast)
         val numberOfDefinitions = 6408
