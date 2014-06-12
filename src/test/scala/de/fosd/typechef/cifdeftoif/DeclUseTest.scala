@@ -7,7 +7,6 @@ import de.fosd.typechef.typesystem._
 import java.io.{FilenameFilter, FileInputStream, File}
 import de.fosd.typechef.parser.c.Id
 import de.fosd.typechef.parser.c.TranslationUnit
-import de.fosd.typechef.cifdeftoif.TestHelper
 
 class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper {
 
