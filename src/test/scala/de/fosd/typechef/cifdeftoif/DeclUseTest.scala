@@ -160,9 +160,9 @@ class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse
         println(source_ast)
         println(PrettyPrinter.print(source_ast))
         val result = runDefUseOnAst(source_ast)
-        val numberOfDefinitions = 9
-        val numberOfEntries = 7
-        val numberOfVariableIds = 0
+        val numberOfDefinitions = 19
+        val numberOfEntries = 3
+        val numberOfVariableIds = 21
         println(result)
         assert(result ==(numberOfDefinitions + numberOfBuiltinFunctions, numberOfEntries, numberOfVariableIds))
     }
@@ -171,7 +171,7 @@ class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse
         val source_ast = getAstFromPi(new File(ifdeftoifTestPath + "12.c"))
         println(source_ast)
         val result = runDefUseOnAst(source_ast)
-        val numberOfDefinitions = 44
+        val numberOfDefinitions = 43
         val numberOfEntries = 41
         val numberOfVariableIds = 0
         println(result)
@@ -230,11 +230,11 @@ class DeclUseTest extends ConditionalNavigation with ASTNavigation with CDeclUse
 
     @Test def test_inetd_minimal {
         val source_ast = getAstFromPi(new File(decluseTestPath + "inetd_minimal.c"))
-        println(PrettyPrinter.print(source_ast))
+        println(source_ast)
         val result = runDefUseOnAst(source_ast)
-        val numberOfDefinitions = 8
-        val numberOfEntries = 13
-        val numberOfVariableIds = 2
+        val numberOfDefinitions = 11
+        val numberOfEntries = 8
+        val numberOfVariableIds = 0
         println(result)
         assert(result ==(numberOfDefinitions + numberOfBuiltinFunctions, numberOfEntries, numberOfVariableIds))
     }
