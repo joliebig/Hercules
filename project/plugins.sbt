@@ -1,4 +1,8 @@
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.11.2")
+// for sbt 0.13:
+//addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.11.2")
+
+// for sbt 0.12:
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.9.2")
 
 //addCompilerPlugin("org.scala-tools.sxr" % "sxr_2.9.0" % "0.2.7")
 
