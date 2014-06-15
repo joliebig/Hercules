@@ -20,3 +20,4 @@ To install the last version of Hercules simply run:
 	./Hercules/mkrun.sh
 
 Both projects folders 'Hercules' and 'TypeChef' should now be in your current working directory! In order to use Hercules simply run ./ifdeftoif.sh in the Hercules directory.
+If there occur problems with the initialization of the java VM change the VM options in /TypeChef/sbt and /Hercules/mkrun.sh .
