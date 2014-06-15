@@ -9,16 +9,11 @@ The transformation tool relies on the variability-aware parsing and analysis inf
 Installation and Usage
 ----------------------
 
-Hercules requires a modified version of TypeChef. To install it simply run:
+Hercules requires a modified version of TypeChef. To install it together with Hercules simply run:
 
     git clone git://github.com/aJanker/TypeChef.git
+	git clone git://github.com/joliebig/Hercules.git
     cd TypeChef
-    ./sbt clean update compile
-    ./sbt mkrun
-    ./sbt publish-local
-
-To install the last version of Hercules simply run:
-
-    git clone git://github.com/joliebig/Hercules.git
-    cd Hercules
-    ./mkrun.sh
+    ./publish.sh
+	cd ../Hercules
+	./mkrun.sh
