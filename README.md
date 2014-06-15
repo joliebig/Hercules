@@ -9,11 +9,14 @@ The transformation tool relies on the variability-aware parsing and analysis inf
 Installation and Usage
 ----------------------
 
-Hercules requires a modified version of TypeChef. To install it together with Hercules simply run:
+Hercules requires a modified version of TypeChef. To install it simply run:
 
     git clone git://github.com/aJanker/TypeChef.git
+    ./TypeChef/publish.sh
+
+To install the last version of Hercules simply run:
+
 	git clone git://github.com/joliebig/Hercules.git
-    cd TypeChef
-    ./publish.sh
-	cd ../Hercules
-	./mkrun.sh
+	./Hercules/mkrun.sh
+
+Both projects folders 'Hercules' and 'TypeChef' should now be in your current working directory! In order to use Hercules simply run ./ifdeftoif.sh in the Hercules directory.
