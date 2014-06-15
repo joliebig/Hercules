@@ -1,3 +1,3 @@
 #!/bin/sh
 
-java -Xmx1024M -Xss256M -XX:PermSize=256M -XX:MaxPermSize=512M -jar sbt-launch.jar compile copy-resources mkrun
+java -Xmx1024M -Xss10M -XX:PermSize=256M -jar sbt-launch.jar compile copy-resources mkrun
