@@ -24,10 +24,14 @@ object CPP_replacement_methods {
             if (file.isDefined && ! file.isEmpty) {
                 var fname = file.get
                 if (fname.endsWith(".c") || fname.endsWith(".h")) {
-                    if (fname.startsWith("file "))
-                        fname = fname.substring("file ".length)
+                  if (fname.startsWith("file "))
+                    fname = fname.substring("file ".length)
+                  if (new File(fname).isAbsolute) {
+                    ret += fname
+                  } else {
                     // filenames are relative to TypeChef-Busybox directory, so we add ..
-                    ret += "../" + fname
+                    ret += ("../" + fname)
+                  }
                 }
             }
         }
@@ -43,7 +47,7 @@ object CPP_replacement_methods {
         ret
     }
 
-    def writeDependencyFile(ast : TranslationUnit, fullSubjectFileName : String, subjectBasename : String) {
+    def writeDependencyFile(ast : TranslationUnit, fullSubjectFileName : String, subjectBasename : String, dependencyFilePath:String) : String = {
         var subjectFileNoExtension = fullSubjectFileName
         if (fullSubjectFileName.endsWith(".c"))
             subjectFileNoExtension = fullSubjectFileName.substring(0, fullSubjectFileName.length-".c".length)
@@ -52,13 +56,14 @@ object CPP_replacement_methods {
             subjectBasenameNoExtension = subjectBasename.substring(0, subjectBasename.length-".c".length)
 
         val dependencies : Set[String] = getIncludedFiles(ast) - subjectBasename
-        // dependency file name is .file.d (hidden)
-        val dfile = new File(new File(subjectFileNoExtension).getParent, "." + subjectBasenameNoExtension + ".d")
+        // dependency file name (sometimes) is .file.d (hidden)
+        val dfile = new File(dependencyFilePath)
         val out = new java.io.FileWriter(dfile)
         out.write(subjectBasenameNoExtension + ".o :")
         for (dep <- dependencies)
             out.write(" " + dep)
         out.write("\n")
         out.close
+        return dfile.getAbsolutePath
     }
 }

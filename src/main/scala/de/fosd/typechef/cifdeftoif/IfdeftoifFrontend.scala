@@ -14,6 +14,8 @@ import de.fosd.typechef.crewrite._
 import de.fosd.typechef.lexer.LexerFrontend
 import de.fosd.typechef.conditional.{Opt, One}
 
+import scala.io.Source
+
 
 object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
@@ -122,12 +124,12 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
             if (ast != null) {
 
-                /*
+
                 // I need this code for building serialized AST-parts that I can use in PreparedIfdeftoifParts to replace problematic AST elements.
                 // step 1. copy problematic source code in file, load it with TC, trim and copy AST code (line 1) in val s (trimming means to remove the TranslationUnit etc)
                 // step 2. fix problematic source code in file, load it with TC, trim and copy AST code (line 1) in val r
                 // step 3. copy 4 following lines to File "ifdeftoif_replacements_parts/PreparedReplacementParts.txt"
-
+                /*
                 println("// AST:  " + ast)
                 println()
                 val s = Opt(FeatureExprFactory.True,Declaration(List(Opt(FeatureExprFactory.True,EnumSpecifier(None,Some(List(Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_COLLAPSE"),Some(Constant("0x00010000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_TRIM"),Some(Constant("0x00020000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_GREEDY"),Some(Constant("0x00040000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_MIN_DIE"),Some(Constant("0x00100000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_KEEP_COPY"),Some(NAryExpr(Constant("0x00200000"),List(Opt(FeatureExprFactory.createDefinedExternal("CONFIG_FEATURE_CROND_D"),NArySubExpr("*",Constant("1"))), Opt(FeatureExprFactory.createDefinedExternal("CONFIG_FEATURE_CROND_D").not(),NArySubExpr("*",Constant("0")))))))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_EOL_COMMENTS"),Some(Constant("0x00400000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_NORMAL"),Some(NAryExpr(Id("PARSE_COLLAPSE"),List(Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_TRIM"))), Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_GREEDY"))), Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_EOL_COMMENTS"))))))))))))),List()))
@@ -212,7 +214,33 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 i.writeExternIfdeftoIfStruct("../ifdeftoif/partialConfiguration.config", defaultConfigExpr, prefixStr)
 
                             }
-                            CPP_replacement_methods.writeDependencyFile(ast, opt.getOutputStem, fileName)
+                            println("MD option: " + opt.getMDoption)
+                            if (opt.getMDoption!=null && !opt.getMDoption.isEmpty) {
+                              val dfilepath: String = CPP_replacement_methods.writeDependencyFile(ast, opt.getOutputStem, fileName, opt.getMDoption)
+                              println("written dependency file (.d) to " + dfilepath)
+                            } else {
+                              val gccOptFile = new File("../ifdeftoif/lastGCCoptions.txt") // extract MD option value from GCC options
+                              if (gccOptFile.exists()) {
+                                var mdOption:String =""
+                                val iter = Source.fromFile(gccOptFile).iter
+                                while (mdOption.isEmpty && !iter.isEmpty) {
+                                  iter.dropWhile(!_.equals('-'))
+                                  if (iter.hasNext && iter.next() == ('M'))
+                                    if (iter.hasNext && iter.next() == ('D')) {
+                                      for (x:Char <- iter.takeWhile(!_.equals('-')))
+                                        mdOption += x
+                                    }
+                                }
+                                mdOption = mdOption.trim
+                                if (!mdOption.isEmpty) {
+                                  if (mdOption.contains(" "))
+                                    mdOption = mdOption.substring(0, mdOption.indexOf(" "))
+                                  val caseStudyRoot = "/local/ifdeftoif/TypeChef-BusyboxAnalysis_CPP_replacement/busybox-1.18.5/"
+                                  val dfilepath: String = CPP_replacement_methods.writeDependencyFile(ast, opt.getOutputStem, fileName, caseStudyRoot+mdOption)
+                                  println("written dependency file (.d) to " + dfilepath)
+                                }
+                              }
+                            }
                         } else {
                             println("#ifdef to if transformation unsuccessful because of type errors in source file")
                         }
