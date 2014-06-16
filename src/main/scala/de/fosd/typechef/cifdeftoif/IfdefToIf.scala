@@ -118,11 +118,21 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     PointerPostfixSuffix(".", Id(fName.toLowerCase)))
             )
         case a: And =>
+          if (a.clauses.isEmpty)
+            // This is the true value
+            Constant("1")
+          else {
             val l = a.clauses.toList
             NAryExpr(toCExpr(l.head), l.tail.map(x => Opt(trueF, NArySubExpr("&&", toCExpr(x)))))
+          }
         case o: Or =>
+          if (o.clauses.isEmpty)
+            // This is the false value
+            Constant("0")
+          else {
             val l = o.clauses.toList
             NAryExpr(toCExpr(l.head), l.tail.map(x => Opt(trueF, NArySubExpr("||", toCExpr(x)))))
+          }
         case Not(n) => UnaryOpExpr("!", toCExpr(n))
     }
 
@@ -1440,7 +1450,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * require code duplications. Example: condition inside an IfStatement has a variable Identifier -> we have to create
      * two different IfStatements and the function returns these two distinct features.
      */
-    private def computeFExpsForDuplication(a: Any, curCtx: FeatureExpr, isTopLevel: Boolean = false): List[FeatureExpr] = {
+    def computeFExpsForDuplication(a: Any, curCtx: FeatureExpr, isTopLevel: Boolean = false): List[FeatureExpr] = {
         def computationHelper(a: Any, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
             val featureList = getNextOptFeatures(a, currentContext, isTopLevel).filterNot(x => x.equivalentTo(currentContext, fm)) ++ List(FeatureExprFactory.False)
             val identFeatureList = getNextIdFeatures(a, currentContext, isTopLevel)
