@@ -1225,6 +1225,16 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
       // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
       assert (! ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
     }
+    @Test def test_alex_19() {
+      val file = new File(ifdeftoifTestPath + "19.c")
+      println(i.getAstFromFile(file))
+      val ast : TranslationUnit = testFile(file)._2
+      val search = CompoundStatement(List(Opt(FeatureExprFactory.True,LabelStatement(Id("skip"),None))))
+      // bug was/is that a referenced label (next_link) was deleted from the ast
+      val labelRef = GotoStatement(Id("next_link"))
+      val labelDef = LabelStatement(Id("next_link"),None)
+      assert (!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString),"label \"next_link\" removed but still referenced")
+    }
 
     @Test def test_opt_flags() {
         val file = new File(ifdeftoifTestPath + "opt_flags.c")
