@@ -931,17 +931,17 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def replaceOptAndId[S <: Product](current: S, feature: FeatureExpr): S = {
         def replaceHelp[T <: Any](t: T, feat: FeatureExpr): T = {
-            val r = alltd(rule {
+            val r = manytd(rule {
                 case l: List[Opt[_]] =>
                     l.flatMap {
                             case o: Opt[_] =>
                                 // Feature in opt node is equal or less specific than the context, replace opt node feature with True
                                 if (o.feature.equivalentTo(feat, fm) || feat.implies(o.feature).isTautology(fm)) {
-                                    List(Opt(trueF, replaceHelp(o.entry, feat)))
+                                    List(o.copy(feature = trueF))
                                 }
                                     // Feature in opt node is more specific and still satisfiable in the context, don't change opt node
                                 else if (feat.and(o.feature).isSatisfiable(fm)) {
-                                    List(Opt(o.feature, replaceHelp(o.entry, feat)))
+                                    List(o)
                                 }
                                     // Feature in opt node is not satisfiable in the current context, remove opt node
                                 else {
