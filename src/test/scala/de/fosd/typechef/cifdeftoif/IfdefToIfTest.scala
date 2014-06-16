@@ -77,7 +77,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }
     }
 
-    def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): Int = {
+    def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
         val analyseString = "++Analyse: " + file.getName + "++"
@@ -149,9 +149,9 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
 
             // everything should be ok
             //println(fileContent)
-            new_ast._2.split(",")(3).toInt
+          (new_ast._2.split(",")(3).toInt, new_ast._1)
         } else {
-            0
+          (0, TranslationUnit(List()))
         }
     }
 
@@ -1215,6 +1215,15 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val file = new File(ifdeftoifTestPath + "17.c")
         println(i.getAstFromFile(file))
         testFile(file)
+    }
+    @Test def test_alex_18() {
+      val file = new File(ifdeftoifTestPath + "18.c")
+      println(i.getAstFromFile(file))
+      val ast : TranslationUnit = testFile(file)._2
+      val search = CompoundStatement(List(Opt(FeatureExprFactory.True,LabelStatement(Id("skip"),None))))
+      // the ast must not contain the search ast
+      // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
+      assert (! ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
     }
 
     @Test def test_opt_flags() {
