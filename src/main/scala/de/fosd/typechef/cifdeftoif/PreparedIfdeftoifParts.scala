@@ -55,15 +55,16 @@ object PreparedIfdeftoifParts {
                 loadPreparedPartsFromFile(definitionsFile)
         var ret = inAST
         for ((search, repl) <- preparedParts) {
-            ret = replaceOnceTD(ret, search, repl)
+            ret = replaceManyTD(ret, search, repl)
         }
         for ((search, replLst) <- preparedPartsLists) {
             ret = replaceManyTD(ret, search, replLst)
         }
+        println("did ast part replacement with " + (preparedPartsLists.size+preparedParts.size) + " prepared parts")
         return ret
     }
 
-    def replaceOnceTD[T <: Product](t: T, mark: Opt[_], replace: Opt[_]): T = {
+    def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: Opt[_]): T = {
         val r = manytd(rule {
             case l: List[_] =>
                 l.flatMap(x =>
