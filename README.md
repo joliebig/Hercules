@@ -12,12 +12,15 @@ Installation and Usage
 Hercules requires a modified version of TypeChef. To install it simply run:
 
     git clone git://github.com/aJanker/TypeChef.git
-    ./TypeChef/publish.sh
+	cd Typechef
+    ./publish.sh
+	cd ..
 
 To install the last version of Hercules simply run:
 
 	git clone git://github.com/joliebig/Hercules.git
-	./Hercules/mkrun.sh
+	cd Hercules
+	./mkrun.sh
 
 Both projects folders `Hercules` and `TypeChef` should now be in your current working directory! In order to use Hercules simply run `./ifdeftoif.sh` in the Hercules directory.
 
