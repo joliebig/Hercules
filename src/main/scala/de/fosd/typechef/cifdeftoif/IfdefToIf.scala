@@ -1,24 +1,22 @@
 package de.fosd.typechef.cifdeftoif
 
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
-
-import java.util.{Collections, IdentityHashMap}
 import java.io._
+import java.util.{Collections, IdentityHashMap}
 
-import org.apache.logging.log4j.LogManager
-
-import org.kiama.rewriting.Rewriter._
-
-import de.fosd.typechef.parser.c._
+import de.fosd.typechef.ConfigurationHandling
+import de.fosd.typechef.conditional._
+import de.fosd.typechef.error.TypeChefError
 import de.fosd.typechef.featureexpr._
 import de.fosd.typechef.featureexpr.bdd.BDDFeatureExpr
 import de.fosd.typechef.featureexpr.sat._
-import de.fosd.typechef.conditional._
 import de.fosd.typechef.lexer.FeatureExprLib
-import de.fosd.typechef.typesystem.{IdentityIdHashMap, CTypeSystemFrontend}
-import de.fosd.typechef.error.TypeChefError
-import de.fosd.typechef.ConfigurationHandling
+import de.fosd.typechef.parser.c._
+import de.fosd.typechef.typesystem.{CTypeSystemFrontend, IdentityIdHashMap}
+import org.apache.logging.log4j.LogManager
+import org.kiama.rewriting.Rewriter._
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 
 /**
@@ -50,6 +48,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
     // conversion factor: nanoseconds to milliseconds
     private val nstoms = 1000000
+  private val tb = java.lang.management.ManagementFactory.getThreadMXBean
 
     private val fs = System.getProperty("file.separator")
 
@@ -995,7 +994,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def ifdeftoif(source_ast: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty, outputStem: String = "unnamed", lexAndParseTime: Long = 0, writeStatistics: Boolean = true, newPath: String = "", typecheckResult: Boolean = true, useExternConfigStruct: Boolean = true): (Option[AST], Long, List[TypeChefError]) = {
         new File(path).mkdirs()
-        val tb = java.lang.management.ManagementFactory.getThreadMXBean
         init(fm)
 
         // Set the feature model, declUseMap, useDeclMap
@@ -1382,7 +1380,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
 
         // TODO fgarbe: Why filter here again? The results of the and operation are already checked for satisfiablity.
-        computeCarthesianProductHelper(list, context).filter(x => x.isSatisfiable() && x.isSatisfiable(fm))
+      computeCarthesianProductHelper(list, context).filter(x => x.isSatisfiable() && x.isSatisfiable(fm))
     }
 
     /**
