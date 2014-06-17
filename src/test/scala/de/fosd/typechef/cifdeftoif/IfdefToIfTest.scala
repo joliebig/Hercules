@@ -26,6 +26,9 @@ import scala.Tuple2
 import de.fosd.typechef.parser.c.StaticSpecifier
 
 class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper with EnforceTreeHelper {
+
+    de.fosd.typechef.featureexpr.FeatureExprFactory.setDefault(de.fosd.typechef.featureexpr.FeatureExprFactory.bdd)
+
     val makeAnalysis = true
     val writeFilesIntoIfdeftoifFolder = true
     val checkForExistingFiles = true
@@ -1243,8 +1246,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         macroFilter.add("x:CONFIG_")
         val fm = new FeatureExprParser(FeatureExprLib.l()).parseFile(new File(linuxPath + "approx.fm"))
         //testFile(file)
-
-        de.fosd.typechef.featureexpr.FeatureExprFactory.setDefault(de.fosd.typechef.featureexpr.FeatureExprFactory.bdd)
 
         val parse = System.currentTimeMillis()
         val ast = i.getAstFromFile(file)
