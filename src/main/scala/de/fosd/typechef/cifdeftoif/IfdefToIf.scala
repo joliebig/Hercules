@@ -1848,7 +1848,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     var elseTuple = List((FeatureExprFactory.True, None.asInstanceOf[Option[Conditional[Statement]]]))
                     els match {
                         case None =>
-                        case Some(One(stmt)) =>
+                        case s@Some(One(stmt)) => elseTuple = List((trueF, s))
                         case Some(c: Choice[Statement]) =>
                             elseTuple = conditionalToList(c, currentContext).map(x => (x._1, Some(One(x._2))))
                     }
