@@ -1279,7 +1279,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     }
                                 case g: GotoStatement =>
                                     if (!fExps.isEmpty) {
-                                        fExps.map(x => Opt(trueF, statementToIf(replaceOptAndId(g, x), ft, curCtx)))
+                                        fExps.map(x => Opt(trueF, statementToIf(replaceOptAndId(g, x), ft.and(x), curCtx)))
                                     } else if (ft.equals(trueF)) {
                                         List(transformRecursive(o, curCtx))
                                     } else {
@@ -1305,15 +1305,22 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                                 None)))
                                         result
                                     }
-                                case label: LabelStatement =>
-                                    val features = computeFExpsForDuplication(label, ft.and(curCtx))
-                                    if (!features.isEmpty) {
-                                        features.map(x => Opt(trueF, statementToIf(replaceOptAndId(label, x), ft, curCtx)))
-                                    } else if (ft.equals(trueF)) {
-                                        List(o)
+                                case LabelStatement(i: Id, attr) =>
+                                    if (defuse.containsKey(i) && !ft.equivalentTo(trueF)) {
+                                        addIdUsages(i, ft.and(curCtx))
+                                        List(Opt(trueF, LabelStatement(prependCtxPrefix(i, ft.and(curCtx)), attr)))
                                     } else {
-                                        List(Opt(trueF, statementToIf(replaceOptAndId(label, ft), ft, curCtx)))
+                                        List(o)
                                     }
+
+                                /*val features = computeFExpsForDuplication(label, ft.and(curCtx))
+                                if (!features.isEmpty) {
+                                    features.map(x => Opt(trueF, statementToIf(replaceOptAndId(label, x), ft, curCtx)))
+                                } else if (ft.equals(trueF)) {
+                                    List(o)
+                                } else {
+                                    List(Opt(trueF, statementToIf(replaceOptAndId(label, ft), ft, curCtx)))
+                                }*/
                                 // TODO fgarbe: Transformation required!
                                 case _: TypelessDeclaration => List(o)
                                 // We do not support transformations of pragmas! We still remove their variability though.
