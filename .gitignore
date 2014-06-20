@@ -9,6 +9,8 @@ bin
 jcpp.log*
 macroDebug.txt
 target/
+src/test/test.iml
+src/main/main.iml
 lib_managed/
 src_managed/
 project/boot/
