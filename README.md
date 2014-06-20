@@ -12,16 +12,13 @@ Installation and Usage
 Hercules requires a modified version of TypeChef. To install it simply run:
 
     git clone git://github.com/aJanker/TypeChef.git
-	cd Typechef
-    ./publish.sh
-	cd ..
+    ./TypeChef/publish.sh
 
-To install the last version of Hercules simply run:
+To install the last version of Hercules simply run (from the same folder where the `TypeChef` directory lies):
 
 	git clone git://github.com/joliebig/Hercules.git
-	cd Hercules
-	./mkrun.sh
+	./Hercules/mkrun.sh
 
 Both projects folders `Hercules` and `TypeChef` should now be in your current working directory! In order to use Hercules simply run `./ifdeftoif.sh` in the Hercules directory.
 
-If there are any problems with the initialization of the java VM change the VM options in the files `/TypeChef/sbt` and `/Hercules/mkrun.sh`.
+If there are problems creating the Java Virtual Machine tweak the `-Xmx -Xss -XX:PermSize= -XX:MaxPermSize=` parameters in `Hercules/ifdeftoif.sh Hercules/mkrun.sh TypeChef/publish.sh`
