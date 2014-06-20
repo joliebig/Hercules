@@ -1371,7 +1371,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     xs.foldLeft(x)((first, second) => {
                         if (first.size > 1000) {
                             println("Currently computed " + first.size + " different features.")
-                            return List(FeatureExprFactory.False)
                         }
                         first.flatMap(y => {
                             second.flatMap(z => {
@@ -1536,7 +1535,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             }
         }
         def handleLists(listOfLists: List[List[FeatureExpr]], currentContext: FeatureExpr): List[FeatureExpr] = {
-            if (listOfLists.exists(x => exceedsThreshold(x))) {
+            val potentialResultSize1 = listOfLists.map(x => x.size).foldLeft(1)(_ * _)
+            val distinctSingleFeatures = listOfLists.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
+            val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toInt
+            val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
+            if (listOfLists.exists(x => exceedsThreshold(x)) || potentialResultSize > duplicationThreshold) {
                 List(FeatureExprFactory.False)
             } else {
                 listOfLists match {
