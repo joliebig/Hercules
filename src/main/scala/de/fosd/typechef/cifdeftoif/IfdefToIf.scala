@@ -1274,7 +1274,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         if (ft.equals(trueF)) {
                                             List(transformRecursive(o, curCtx))
                                         } else {
-                                            List(Opt(trueF, statementToIf(replaceAndTransform(r, ft), ft, curCtx)))
+                                            List(Opt(trueF, statementToIf(replaceAndTransform(r, ft.and(curCtx)), ft.and(curCtx), curCtx)))
                                         }
                                     }
                                 case g: GotoStatement =>
@@ -1355,6 +1355,35 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         /*feature.and(context)*/
     }
 
+    def prepareASTforIfdef[T <: Product](t: T, currentContext: FeatureExpr = FeatureExprFactory.True): T = {
+        val r = alltd(rule {
+            case l: List[Opt[_]] =>
+                l.flatMap(x => x match {
+                    case o@Opt(ft: FeatureExpr, entry) =>
+                        if (ft.mex(currentContext).isTautology()) {
+                            List()
+                        } else if (ft.implies(currentContext).isTautology()) {
+                            List(prepareASTforIfdef(o, ft))
+                        } else {
+                            List(prepareASTforIfdef(Opt(ft.and(currentContext), entry), ft.and(currentContext)))
+                        }
+                })
+            case o@One(st: Statement) =>
+                st match {
+                    case cs: CompoundStatement =>
+                        One(prepareASTforIfdef(st, currentContext))
+                    case k =>
+                        One(CompoundStatement(List(Opt(FeatureExprFactory.True, prepareASTforIfdef(k, currentContext)))))
+                }
+        })
+        r(t) match {
+            case None =>
+                t
+            case k =>
+                k.get.asInstanceOf[T]
+        }
+    }
+
     /**
      * Computes the cartesian product of a list of lists of FeatureExpressions using the boolean 'and' operator.
      * Ex: List( List(a, b), List(c, d, e)) becomes List(a&c, a&d, a&e, b&c, b&d, b&e).
@@ -1385,7 +1414,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     })
             }
         }
-
+        val potentialResultSize1 = list.map(x => x.size).foldLeft(1)(_ * _)
+        val distinctSingleFeatures = list.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
+        val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toInt
+        val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
         // TODO fgarbe: Why filter here again? The results of the and operation are already checked for satisfiablity.
       computeCarthesianProductHelper(list, context).filter(x => x.isSatisfiable() && x.isSatisfiable(fm))
     }

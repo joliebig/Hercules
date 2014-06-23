@@ -1,17 +1,16 @@
 package de.fosd.typechef.cifdeftoif
 
 
-import de.fosd.typechef.parser.c._
-import de.fosd.typechef.featureexpr.FeatureModel
-import de.fosd.typechef.options._
-import de.fosd.typechef.ErrorXML
 import java.io._
-import de.fosd.typechef.parser.TokenReader
-import java.util.zip.{GZIPOutputStream, GZIPInputStream}
-import de.fosd.typechef.parser.c.CTypeContext
-import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
-import de.fosd.typechef.crewrite._
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
+
+import de.fosd.typechef.ErrorXML
+import de.fosd.typechef.featureexpr.FeatureModel
 import de.fosd.typechef.lexer.LexerFrontend
+import de.fosd.typechef.options._
+import de.fosd.typechef.parser.TokenReader
+import de.fosd.typechef.parser.c.{CTypeContext, _}
+import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
 
 
 object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
@@ -104,6 +103,12 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         //no parsing if read serialized ast
         val in = if (ast == null) lex(opt) else null
 
+        var i: IfdefToIf = null
+        if (opt.ifdeftoifstatistics) {
+            i = new IfdefToIf with IfdefToIfStatistics
+        } else {
+            i = new IfdefToIf
+        }
 
         if (opt.parse) {
             stopWatch.start("parsing")
@@ -113,6 +118,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 val parserMain = new ParserMain(new CParser(parseFM))
                 ast = parserMain.parserMain(in, opt, fullFM)
                 ast = prepareAST[TranslationUnit](ast)
+                if (opt.ifdeftoif) {
+                    ast = i.prepareASTforIfdef(ast)
+                }
 
                 if (ast != null && opt.serializeAST) {
                     stopWatch.start("serialize")
@@ -155,12 +163,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //val includeStructFilename = opt.getincludeStructFilename()
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
-                            var i: IfdefToIf = null
-                            if (opt.ifdeftoifstatistics) {
-                                i = new IfdefToIf with IfdefToIfStatistics
-                            } else {
-                                i = new IfdefToIf
-                            }
                             i.setParseFM(parseFM)
                             val defUseMap = ts.getDeclUseMap
                             val useDefMap = ts.getUseDeclMap
