@@ -58,7 +58,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // The current name of the file to be transformed without extensions or file path
     private var currentFileName = ""
     // SingleFeatureExpressions found in the current AST
-    private var features: Set[SingleFeatureExpr] = Set()
+    private var featureExpressions: Set[SingleFeatureExpr] = Set()
+    private var featuresInAst: Int = 0
     // Default configuration flag, can either be '0' or '1'
     private val defaultConfigurationParameter = Constant("0")
     // Default feature selection state for features which do not appear in the .config file, false = off, true = on
@@ -254,13 +255,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * given ast.
      */
     private def loadAndUpdateFeatures(ast: TranslationUnit) = {
+        featureExpressions = getSingleFeatures(ast)
+        featuresInAst = featureExpressions.size
         if (new File(serializedFeaturePath).exists) {
             val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-            features = getSingleFeatures(ast) ++ loadedFeatures
-        } else {
-            features = getSingleFeatures(ast)
+            featureExpressions = featureExpressions ++ loadedFeatures
         }
-        serializeFeatureNames(features.map(_.feature.toString), serializedFeaturePath)
+        serializeFeatureNames(featureExpressions.map(_.feature.toString), serializedFeaturePath)
     }
 
     /**
@@ -1020,9 +1021,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
         var typecheck_ast: TranslationUnit = TranslationUnit(List())
         if (useExternConfigStruct) {
-            typecheck_ast = TranslationUnit(getInitialTranslationUnit(features).defs ++ new_ast.defs)
+            typecheck_ast = TranslationUnit(getInitialTranslationUnit(featureExpressions).defs ++ new_ast.defs)
         } else {
-            result_ast = TranslationUnit(getInitialTranslationUnit(features).defs ++ new_ast.defs)
+            result_ast = TranslationUnit(getInitialTranslationUnit(featureExpressions).defs ++ new_ast.defs)
             typecheck_ast = result_ast
         }
         exportRenamings()
@@ -1048,7 +1049,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
             if (typeCheckSuccessful) {
                 if (writeStatistics) {
-                    exportStatistics(updateIfdeftoifStatistics(source_ast, typecheck_ast, fileNameWithExt, lexAndParseTime, transformTime, features.size, statisticsPath, topLevelStatisticsPath))
+                    exportStatistics(updateIfdeftoifStatistics(source_ast, typecheck_ast, fileNameWithExt, lexAndParseTime, transformTime, featuresInAst, statisticsPath, topLevelStatisticsPath))
                 }
                 (Some(result_ast), transformTime, List())
             } else {
@@ -1153,15 +1154,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         val tb = java.lang.management.ManagementFactory.getThreadMXBean
 
         fillIdMap(tunit)
-        features = getSingleFeatures(tunit)
+        featureExpressions = getSingleFeatures(tunit)
         defuse = decluse
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
         val result = transformRecursive(tunit, trueF, true)
         val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
 
-        val csvEntry = createCsvEntry(tunit, result, "unnamed", parseTime, transformTime, features.size)
-        (TranslationUnit(getInitialTranslationUnit(features).defs ++ result.asInstanceOf[TranslationUnit].defs), csvEntry)
+        val csvEntry = createCsvEntry(tunit, result, "unnamed", parseTime, transformTime, featuresInAst)
+        (TranslationUnit(getInitialTranslationUnit(featureExpressions).defs ++ result.asInstanceOf[TranslationUnit].defs), csvEntry)
     }
 
     /**
