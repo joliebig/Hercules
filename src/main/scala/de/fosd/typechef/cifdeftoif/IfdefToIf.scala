@@ -1183,7 +1183,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                              */
                             writeToFile("ifdeftoif_progress.txt", entry.asInstanceOf[AST].range.get.toString() + " from " + o)
                         }
-                        val fExps = computeFExpsForDuplication(entry, o.feature.and(curCtx), isTopLevel)
+                        val newCtx = curCtx.and(ft)
+                        val fExps = computeFExpsForDuplication(entry, newCtx, isTopLevel)
                         if (exceedsThreshold(fExps)) {
                             List(o)
                         } else {
@@ -1196,16 +1197,16 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         Ex: void main() { int a = id2i.x64 ? 0 : 1 }
                                         Not possible for assignments on global variables!
                                          */
-                                        val exprFeatures = computeFExpsForDuplication(expr, o.feature.and(curCtx))
+                                        val exprFeatures = computeFExpsForDuplication(expr, newCtx)
                                         if (exceedsThreshold(exprFeatures)) {
                                             List(o)
                                         } else {
                                             val condExpr = convertToCondExpr(init, exprFeatures, curCtx)
                                             List(transformRecursive(Opt(ft,
-                                                InitDeclaratorI(decl, attributes, Some(condExpr))), curCtx.and(ft)))
+                                                InitDeclaratorI(decl, attributes, Some(condExpr))), newCtx))
                                         }
                                     } else {
-                                        List(transformRecursive(o, curCtx.and(ft)))
+                                        List(transformRecursive(o, newCtx))
                                     }
                                 case DeclarationStatement(decl: Declaration) =>
                                     val result = handleDeclarations(Opt(ft, decl), curCtx, isTopLevel)
@@ -1218,7 +1219,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     result
                                 case i@Initializer(elem, expr) =>
                                     if (fExps.isEmpty) {
-                                        List(replaceAndTransform(Opt(trueF, Initializer(elem, expr)), o.feature.and(curCtx)))
+                                        List(replaceAndTransform(Opt(trueF, Initializer(elem, expr)), newCtx))
                                     } else {
                                         List(Opt(trueF, convertToCondExpr(i, fExps, curCtx)))
                                     }
@@ -1231,7 +1232,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     } else {
                                         List(Opt(trueF,
                                             transformRecursive(convertEnumId(replaceOptAndId(e, o.feature), o.feature),
-                                                o.feature.and(curCtx))))
+                                                newCtx)))
                                     }
                                 /*case e@Enumerator(_, Some(expr)) =>
                                     val exprFeatures = computeFExpsForDuplication(expr, o.feature.and(curCtx))
@@ -1251,20 +1252,20 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     }*/
                                 case sd@StructDeclaration(qual, decl) =>
                                     if (!fExps.isEmpty) {
-                                        countDuplications(o.entry, fExps.size, isTopLevel)
+                                        countDuplications(entry, fExps.size, isTopLevel)
                                         fExps.map(x => replaceAndTransform(Opt(trueF, StructDeclaration(qual, convertStructId(decl, x))), x))
                                     } else if (ft.equals(trueF)) {
                                         List(transformRecursive(o, curCtx))
                                     } else {
                                         List(replaceOptAndId(Opt(trueF,
-                                            StructDeclaration(qual, convertStructId(decl, o.feature))), o.feature))
+                                            StructDeclaration(qual, convertStructId(decl, ft))), ft))
                                     }
                                 case _: FunctionDef | _: NestedFunctionDef =>
                                     val result = handleFunction(o)
                                     countDuplications(o.entry, result.size, isTopLevel)
                                     result
                                 case _: IfStatement | _: WhileStatement | _: SwitchStatement | _: DoStatement | _: ForStatement =>
-                                    val result = handleStatement(o, ft.and(curCtx))
+                                    val result = handleStatement(o, newCtx)
                                     countDuplications(o.entry, result.size, isTopLevel)
                                     result
                                 case r: ReturnStatement =>
@@ -1274,7 +1275,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         if (ft.equals(trueF)) {
                                             List(transformRecursive(o, curCtx))
                                         } else {
-                                            List(Opt(trueF, statementToIf(replaceAndTransform(r, ft.and(curCtx)), ft.and(curCtx), curCtx)))
+                                            List(Opt(trueF, statementToIf(replaceAndTransform(r, newCtx), newCtx, curCtx)))
                                         }
                                     }
                                 case g: GotoStatement =>
@@ -1286,21 +1287,20 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         List(Opt(trueF, statementToIf(replaceOptAndId(g, ft), ft, curCtx)))
                                     }
                                 case e: ExprStatement =>
-                                    val realFeature = curCtx.and(o.feature)
-                                    val features = computeFExpsForDuplication(e, realFeature)
+                                    val features = computeFExpsForDuplication(e, newCtx)
                                     if (!features.isEmpty) {
-                                        countDuplications(o.entry, features.size, isTopLevel)
+                                        countDuplications(entry, features.size, isTopLevel)
                                         features.map(x => Opt(trueF,
-                                            IfStatement(One(toCExpr(fExprDiff(curCtx, x.and(realFeature)))),
-                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), x.and(realFeature))))),
+                                            IfStatement(One(toCExpr(fExprDiff(curCtx, x.and(newCtx)))),
+                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), x.and(newCtx))))),
                                                 List(),
                                                 None)))
                                     } else if (ft.equals(trueF)) {
                                         List(transformRecursive(o, curCtx))
                                     } else {
                                         val result = List(Opt(trueF,
-                                            IfStatement(One(toCExpr(realFeature)),
-                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), realFeature)))),
+                                            IfStatement(One(toCExpr(newCtx)),
+                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), newCtx)))),
                                                 List(),
                                                 None)))
                                         result
@@ -1308,7 +1308,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 case LabelStatement(i: Id, attr) =>
                                     if (defuse.containsKey(i) && !ft.equivalentTo(trueF)) {
                                         addIdUsages(i, ft.and(curCtx))
-                                        List(Opt(trueF, LabelStatement(prependCtxPrefix(i, ft.and(curCtx)), attr)))
+                                        List(Opt(trueF, LabelStatement(prependCtxPrefix(i, newCtx), attr)))
                                     } else {
                                         List(o)
                                     }
@@ -1330,11 +1330,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 case cs: CompoundStatement =>
                                     List(Opt(trueF,
                                         IfStatement(
-                                            One(toCExpr(o.feature)),
+                                            One(toCExpr(ft)),
                                             One(replaceAndTransform(cs, o.feature)),
                                             List(),
                                             None)))
-                                case _ => List(transformRecursive(o, curCtx.and(o.feature)))
+                                case _ => List(transformRecursive(o, newCtx))
                             }
                         }
                     case k => List(transformRecursive(k, curCtx))
