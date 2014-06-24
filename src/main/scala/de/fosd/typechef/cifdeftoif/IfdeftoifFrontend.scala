@@ -167,14 +167,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                     }
                     if (opt.ifdeftoif) {
                         if (typeCheckStatus) {
-
-                            // preprocessing: replace situations with too much local variability (e.g. different string in each variant) with prepared replacements
-                            val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
-                            if (replacementDefintionsFile.exists())
-                                ast = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
-                            else
-                                println("Did not find file with replacement definitions: " + replacementDefintionsFile.getPath)
-
                             //ProductGeneration.typecheckProducts(fm,fullFM,ast,opt,
                             //logMessage=("Time for lexing(ms): " + (t2-t1) + "\nTime for parsing(ms): " + (t3-t2) + "\n"))
                             //ProductGeneration.estimateNumberOfVariants(ast, fullFM)
@@ -187,6 +179,15 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             } else {
                                 i = new IfdefToIf
                             }
+                            // preprocessing: replace situations with too much local variability (e.g. different string in each variant) with prepared replacements
+                            val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
+                            if (replacementDefintionsFile.exists()) {
+                              val (newAst, usedVariables) = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
+                              ast = newAst
+                              i.loadAndUpdateFeatures(usedVariables)
+                            }else
+                              println("Did not find file with replacement definitions: " + replacementDefintionsFile.getPath)
+
                             i.setParseFM(parseFM)
                             val defUseMap = ts.getDeclUseMap
                             val useDefMap = ts.getUseDeclMap
@@ -212,7 +213,8 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 val prefixEx = FunctionDef(List(Opt(FeatureExprFactory.True,IntSpecifier())),AtomicNamedDeclarator(List(),Id("__VERIFIER_NONDET_INT"),List(Opt(FeatureExprFactory.True,DeclIdentifierList(List())))),List(),CompoundStatement(List(Opt(FeatureExprFactory.True,ReturnStatement(Some(Constant("1")))))))
                                 val prefixStr = PrettyPrinter.print(prefixEx)
                                 i.writeExternIfdeftoIfStruct("../ifdeftoif/partialConfiguration.config", defaultConfigExpr, prefixStr)
-
+                            } else {
+                              i.writeExternIfdeftoIfStruct("../ifdeftoif/partialConfiguration.config")
                             }
                             println("MD option: " + opt.getMDoption)
                             if (opt.getMDoption!=null && !opt.getMDoption.isEmpty) {

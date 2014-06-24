@@ -1,6 +1,8 @@
 package de.fosd.typechef.cifdeftoif
 
 import java.io._
+import de.fosd.typechef.featureexpr.SingleFeatureExpr
+
 import scala.io.Source
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 import org.kiama.rewriting.Rewriter._
@@ -46,22 +48,31 @@ object PreparedIfdeftoifParts {
         return (ret.toMap, retLsts.toMap)
     }
 
-    def replaceInAST(inAST: TranslationUnit, definitionsFile : File): TranslationUnit = {
+    def replaceInAST(inAST: TranslationUnit, definitionsFile : File): (TranslationUnit,Set[SingleFeatureExpr]) = {
         if (! definitionsFile.exists) {
             println("prepared parts def file does not exist: " + definitionsFile.getAbsolutePath)
-            return inAST
+            return (inAST , Set())
         }
+        var replacedFeatures : Set[SingleFeatureExpr] = Set()
         val (preparedParts, preparedPartsLists) =
                 loadPreparedPartsFromFile(definitionsFile)
         var ret = inAST
         for ((search, repl) <- preparedParts) {
-            ret = replaceManyTD(ret, search, repl)
+            val retnew = replaceManyTD(ret, search, repl)
+            if (retnew != ret) {
+              ret = retnew // found and replaced search object
+              replacedFeatures ++= IfdeftoifUtils.getSingleFeatures(search)
+            }
         }
         for ((search, replLst) <- preparedPartsLists) {
-            ret = replaceManyTD(ret, search, replLst)
+          val retnew = replaceManyTD(ret, search, replLst)
+          if (retnew != ret) {
+            ret = retnew // found and replaced search object
+            replacedFeatures ++= IfdeftoifUtils.getSingleFeatures(search)
+          }
         }
         println("did ast part replacement with " + (preparedPartsLists.size+preparedParts.size) + " prepared parts")
-        return ret
+        return (ret, replacedFeatures)
     }
 
     def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: Opt[_]): T = {

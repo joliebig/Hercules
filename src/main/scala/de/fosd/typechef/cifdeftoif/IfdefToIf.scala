@@ -254,7 +254,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * 3. functions for initializing the the option structure.
      */
     def generateIfdefOptionsTUnit(ast: AST): TranslationUnit = {
-        val features = getSingleFeatures(ast)
+        val features = IfdeftoifUtils.getSingleFeatures(ast)
         val optionsAst = getInitialTranslationUnit(features)
         optionsAst
     }
@@ -263,14 +263,21 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
      * given ast.
      */
-    private def loadAndUpdateFeatures(ast: TranslationUnit) = {
-        if (new File(serializedFeaturePath).exists) {
-            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-            features = getSingleFeatures(ast) ++ loadedFeatures
-        } else {
-            features = getSingleFeatures(ast)
-        }
-        serializeFeatureNames(features.map(_.feature.toString), serializedFeaturePath)
+    def loadAndUpdateFeatures(ast: TranslationUnit) : Unit = {
+      loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
+    }
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given feature expression set.
+     */
+    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]) : Unit = {
+      if (new File(serializedFeaturePath).exists) {
+        val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
+        features = newFeatures ++ loadedFeatures
+      } else {
+        features = newFeatures
+      }
+      serializeFeatureNames(features.map(_.feature.toString), serializedFeaturePath)
     }
 
     /**
@@ -413,27 +420,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr:Expr=defaultConfigurationParameter, prefix:String = "") = {
         val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-        val structDeclaration = Opt(trueF, getOptionStruct(loadSerializedFeatureNames(serializedFeaturePath)))
+        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
         val externDeclaration = Opt(True, Declaration(List(Opt(True, ExternSpecifier()), Opt(True, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(True, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
         val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
 
         PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
-    }
-
-    /**
-     * Returns a set of all configuration options in a.
-     */
-    private def getSingleFeatures(a: Any): Set[SingleFeatureExpr] = {
-        var featureSet: Set[FeatureExpr] = Set()
-        val r = manytd(query {
-            case Opt(ft, _) =>
-                featureSet += ft
-            case Choice(ft, _, _) =>
-                featureSet += ft
-        })
-
-        r(a)
-        featureSet.flatMap(x => x.collectDistinctFeatureObjects)
     }
 
     /**
@@ -1186,7 +1177,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         val tb = java.lang.management.ManagementFactory.getThreadMXBean
 
         fillIdMap(tunit)
-        features = getSingleFeatures(tunit)
+        features = IfdeftoifUtils.getSingleFeatures(tunit)
         defuse = decluse
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
