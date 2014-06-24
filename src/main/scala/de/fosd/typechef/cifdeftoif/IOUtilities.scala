@@ -23,7 +23,7 @@ trait IOUtilities {
     def appendToFile(fileName: String, textData: String) {
         using(new FileWriter(fileName, true)) {
             fileWriter => using(new PrintWriter(fileWriter)) {
-                printWriter => printWriter.println(textData)
+                printWriter => printWriter.print(textData)
             }
         }
     }

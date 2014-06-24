@@ -1,19 +1,17 @@
 package de.fosd.typechef.cifdeftoif
 
 
-import de.fosd.typechef.parser.c._
-import de.fosd.typechef.featureexpr.{FeatureExprFactory, FeatureModel}
-import de.fosd.typechef.options._
-import de.fosd.typechef.{CPP_replacement_methods, ErrorXML, lexer}
 import java.io._
-import de.fosd.typechef.parser.TokenReader
-import java.util.zip.{GZIPOutputStream, GZIPInputStream}
-import de.fosd.typechef.parser.c.CTypeContext
-import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
-import de.fosd.typechef.crewrite._
-import de.fosd.typechef.lexer.LexerFrontend
-import de.fosd.typechef.conditional.{Opt, One}
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
+import de.fosd.typechef.{CPP_replacement_methods, ErrorXML}
+import de.fosd.typechef.conditional.Opt
+import de.fosd.typechef.featureexpr.{FeatureExprFactory, FeatureModel}
+import de.fosd.typechef.lexer.LexerFrontend
+import de.fosd.typechef.options._
+import de.fosd.typechef.parser.TokenReader
+import de.fosd.typechef.parser.c.{CTypeContext, _}
+import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
 import scala.io.Source
 
 
@@ -107,6 +105,13 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         //no parsing if read serialized ast
         val in = if (ast == null) lex(opt) else null
 
+        var i: IfdefToIf = null
+        if (opt.ifdeftoifstatistics) {
+            i = new IfdefToIf with IfdefToIfStatistics
+        } else {
+            i = new IfdefToIf
+        }
+
         if (opt.parse) {
             stopWatch.start("parsing")
 
@@ -115,11 +120,23 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 val parserMain = new ParserMain(new CParser(parseFM))
                 ast = parserMain.parserMain(in, opt, fullFM)
                 ast = prepareAST[TranslationUnit](ast)
+                if (opt.ifdeftoif) {
+                  // preprocessing: replace situations with too much local variability (e.g. different string in each variant) with prepared replacements
+                  val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
+                  if (replacementDefintionsFile.exists()) {
+                    val (newAst, usedVariables) = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
+                    ast = newAst
+                    i.loadAndUpdateFeatures(usedVariables)
+                  } else
+                    println("Did not find file with replacement definitions: " + replacementDefintionsFile.getPath)
+                  ast = i.prepareASTforIfdef(ast)
+                }
 
                 if (ast != null && opt.serializeAST) {
                     stopWatch.start("serialize")
                     serializeAST(ast, opt.getSerializedTUnitFilename)
                 }
+
             }
 
             if (ast != null) {
@@ -173,21 +190,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //val includeStructFilename = opt.getincludeStructFilename()
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
-                            var i: IfdefToIf = null
-                            if (opt.ifdeftoifstatistics) {
-                                i = new IfdefToIf with IfdefToIfStatistics
-                            } else {
-                                i = new IfdefToIf
-                            }
-                            // preprocessing: replace situations with too much local variability (e.g. different string in each variant) with prepared replacements
-                            val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
-                            if (replacementDefintionsFile.exists()) {
-                              val (newAst, usedVariables) = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
-                              ast = newAst
-                              i.loadAndUpdateFeatures(usedVariables)
-                            }else
-                              println("Did not find file with replacement definitions: " + replacementDefintionsFile.getPath)
-
                             i.setParseFM(parseFM)
                             val defUseMap = ts.getDeclUseMap
                             val useDefMap = ts.getUseDeclMap

@@ -58,7 +58,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // The current name of the file to be transformed without extensions or file path
     private var currentFileName = ""
     // SingleFeatureExpressions found in the current AST
-    private var features: Set[SingleFeatureExpr] = Set()
+    private var featureExpressions: Set[SingleFeatureExpr] = Set()
+    private var featuresInAst: Int = 0
     // Default configuration flag, can either be '0' or '1'
     private val defaultConfigurationParameter = Constant("0")
     // Default feature selection state for features which do not appear in the .config file, false = off, true = on
@@ -117,21 +118,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     PointerPostfixSuffix(".", Id(fName.toLowerCase)))
             )
         case a: And =>
-          if (a.clauses.isEmpty)
-            // This is the true value
-            Constant("1")
-          else {
             val l = a.clauses.toList
             NAryExpr(toCExpr(l.head), l.tail.map(x => Opt(trueF, NArySubExpr("&&", toCExpr(x)))))
-          }
         case o: Or =>
-          if (o.clauses.isEmpty)
-            // This is the false value
-            Constant("0")
-          else {
             val l = o.clauses.toList
             NAryExpr(toCExpr(l.head), l.tail.map(x => Opt(trueF, NArySubExpr("||", toCExpr(x)))))
-          }
         case Not(n) => UnaryOpExpr("!", toCExpr(n))
     }
 
@@ -270,14 +261,17 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
      * given feature expression set.
      */
-    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]) : Unit = {
+    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]) :Unit = {
+      featureExpressions ++= newFeatures
+      featuresInAst = featureExpressions.size
+      var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
       if (new File(serializedFeaturePath).exists) {
         val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-        features = newFeatures ++ loadedFeatures
+        allFeatureExpressions = featureExpressions ++ loadedFeatures
       } else {
-        features = newFeatures
+        allFeatureExpressions = featureExpressions
       }
-      serializeFeatureNames(features.map(_.feature.toString), serializedFeaturePath)
+      serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
     }
 
     /**
@@ -328,32 +322,32 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 PointerPostfixSuffix(".", Id(featureName.toLowerCase))), "=", assignmentSource)))
     }
 
-    /**
-     * Takes a set of SingleFeatureExpr and a path to a feature configuration file and returns an init function which
-     * assigns values to the struct members of the ifdeftoif config struct according to the feature selection states
-     * from the given feature configuration file.
-     * @param defExSet
-     * @param featureConfigPath
-     * @return
-     */
-    private def getInitFunction(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = "", defaultConfiguration:Expr=defaultConfigurationParameter): FunctionDef = {
-        var exprStmts: List[Opt[ExprStatement]] = List()
+  /**
+   * Takes a set of SingleFeatureExpr and a path to a feature configuration file and returns an init function which
+   * assigns values to the struct members of the ifdeftoif config struct according to the feature selection states
+   * from the given feature configuration file.
+   * @param defExSet
+   * @param featureConfigPath
+   * @return
+   */
+  private def getInitFunction(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = "", defaultConfiguration:Expr=defaultConfigurationParameter): FunctionDef = {
+    var exprStmts: List[Opt[ExprStatement]] = List()
 
-        if (!featureConfigPath.isEmpty) {
-            val featureConfigFile = new File(featureConfigPath)
-            val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
+    if (!featureConfigPath.isEmpty) {
+      val featureConfigFile = new File(featureConfigPath)
+      val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
 
-            val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
-            val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
-            val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration))
-            exprStmts = trueExprs ++ otherExprs ++ falseExprs
-        } else {
-            exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfiguration))
-        }
-        FunctionDef(List(Opt(trueF, VoidSpecifier())),
-            AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))),
-            List(), CompoundStatement(exprStmts))
+      val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
+      val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
+      val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration))
+      exprStmts = trueExprs ++ otherExprs ++ falseExprs
+    } else {
+      exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfiguration))
     }
+    FunctionDef(List(Opt(trueF, VoidSpecifier())),
+      AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))),
+      List(), CompoundStatement(exprStmts))
+  }
 
     /**
      * Returns the AST representation of functions and declarations used for model checking.
@@ -414,17 +408,33 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
-    /**
-     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
-     * assigning selection states to features. The feature selection states are read from the given .config file path.
-     */
-    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr:Expr=defaultConfigurationParameter, prefix:String = "") = {
-        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
-        val externDeclaration = Opt(True, Declaration(List(Opt(True, ExternSpecifier()), Opt(True, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(True, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
-        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
+  /**
+   * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
+   * assigning selection states to features. The feature selection states are read from the given .config file path.
+   */
+  def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr:Expr=defaultConfigurationParameter, prefix:String = "") = {
+    val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
+    val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
+    val externDeclaration = Opt(True, Declaration(List(Opt(True, ExternSpecifier()), Opt(True, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(True, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+    val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
 
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+    PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+  }
+
+    /**
+     * Returns a set of all configuration options in a.
+     */
+    private def getSingleFeatures(a: Any): Set[SingleFeatureExpr] = {
+        var featureSet: Set[FeatureExpr] = Set()
+        val r = manytd(query {
+            case Opt(ft, _) =>
+                featureSet += ft
+            case Choice(ft, _, _) =>
+                featureSet += ft
+        })
+
+        r(a)
+        featureSet.flatMap(x => x.collectDistinctFeatureObjects)
     }
 
     /**
@@ -474,7 +484,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 val ol = List.fill(cs.size)(o).zip(cs)
 
                 // remove variability from the duplicated nodes based on the given configuration
-                val pol = ol.map { e => Opt(e._2, reduceVariability(e._1, e._2, env)) }
+                val pol = ol.map { e => Opt(e._2, purgeVariability(e._1, e._2, env))}
 
                 // create incrementally a Conditional[_] tree from the duplicated One[_] entries
                 // we use the head element as the seed for the tree creation
@@ -493,7 +503,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 // remove variability from the duplicated nodes based on the given configuration
                 val res = ol.map {
                     e =>
-                        val no = reduceVariability(e._1, e._2, env)
+                        val no = purgeVariability(e._1, e._2, env)
                         no.copy(feature = no.feature.and(e._2))
                 }
 
@@ -502,39 +512,22 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-     * Replaces variability nodes in o according to the given feature expression config either with:
-     *   1. non-variable nodes (Opt(True, ...) or One(_)) if the config always implies the nodes'
-     *      feature expressions,
-     *   2. variable nodes (Opt(fexp, ...) or Choice(fexp, _, _)) if the config sometimes implies nodes'
-     *      feature expressions,
-     *   3. removes the nodes if the config contradicts the nodes' feature expressions.
+     * Replaces variability nodes in o with non-variable nodes (Opt(True, ...) or One(_))
+     * according to the given feature expression config..
      */
-    private def reduceVariability[T](o: T, config: FeatureExpr, env: ASTEnv): T = {
+    private def purgeVariability[T](o: T, config: FeatureExpr, env: ASTEnv): T = {
         manytd(rule {
             case l: List[Opt[_]] => l.flatMap {
                 e =>
                     val fexp = env.featureExpr(e.entry)
                     if (config.implies(fexp).isTautology(fm))
                         Some(e.copy(feature = FeatureExprFactory.True))
-                    else if (config.implies(fexp).isSatisfiable(fm))
-                        Some(e.copy(feature = fexp.simplify(config)))
                     else
                         None
             }
-            case c@Choice(_, tb, eb) =>
-                val fexpTb = env.featureExpr(tb)
-                val fexpEb = env.featureExpr(eb)
-
-                if (!config.implies(fexpTb).isTautology(fm)
-                    && !config.implies(fexpEb).isTautology(fm)) {
-                    // The feature expression of the Choice node is not complete as always.
-                    // Therefore, we recompute it from the annotation sets of tb and eb,
-                    // and compute, including the feature expression of the node itself,
-                    // the diff with respect to the given configuration.
-                    val commonFexp = env.featureSet(tb).intersect(env.featureSet(eb))
-                        .fold(FeatureExprFactory.True)(_ and _)
-                    c.copy(feature = commonFexp.and(c.feature).diff(config))
-                } else if (config.implies(fexpTb).isTautology(fm))
+            case Choice(_, tb, eb) =>
+                val fexp = env.featureExpr(tb)
+                if (config.implies(fexp).isTautology(fm))
                     tb
                 else
                     eb
@@ -548,7 +541,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         var res: Set[Set[FeatureExpr]] = Set()
         manytd(query {
             case Opt(_, x) => res += env.featureSet(x)
-            case One(x)    => res += env.featureSet(x)
         })(a)
         res.map(s => s.fold(FeatureExprFactory.True)(_ and _))
     }
@@ -587,7 +579,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             case Nil =>
                 choice match {
                     case o: One[Expr] => o
-                    // TODO fgarbe: Please specify why isTautology is called without a feature model.
                     case c: Choice[Expr] => One(tList.find(e => e._1.implies(curCtx).isTautology()).getOrElse((trueF, Id("")))._2)
                 }
             case (fExp, exp) :: Nil =>
@@ -706,7 +697,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Using the Declaration-Use-Map we store the usages of renamed declarations and the presence conditions under which
      * they were renamed. Later on this information will be used to rename the corresponding usages of identifiers.
      */
-    private def addIdUsages(i: Id, ft: FeatureExpr) {
+    def addIdUsages(i: Id, ft: FeatureExpr) {
         def putIntoIdsToBeReplaced(i: Id, feature: FeatureExpr) {
             if (idsToBeReplaced.containsKey(i)) {
                 idsToBeReplaced.put(i, idsToBeReplaced.get(i) + feature)
@@ -1042,9 +1033,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
         var typecheck_ast: TranslationUnit = TranslationUnit(List())
         if (useExternConfigStruct) {
-            typecheck_ast = TranslationUnit(getInitialTranslationUnit(features).defs ++ new_ast.defs)
+            typecheck_ast = TranslationUnit(getInitialTranslationUnit(featureExpressions).defs ++ new_ast.defs)
         } else {
-            result_ast = TranslationUnit(getInitialTranslationUnit(features).defs ++ new_ast.defs)
+            result_ast = TranslationUnit(getInitialTranslationUnit(featureExpressions).defs ++ new_ast.defs)
             typecheck_ast = result_ast
         }
         exportRenamings()
@@ -1070,7 +1061,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
             if (typeCheckSuccessful) {
                 if (writeStatistics) {
-                    exportStatistics(updateIfdeftoifStatistics(source_ast, typecheck_ast, fileNameWithExt, lexAndParseTime, transformTime, features.size, statisticsPath, topLevelStatisticsPath))
+                    exportStatistics(updateIfdeftoifStatistics(source_ast, typecheck_ast, fileNameWithExt, lexAndParseTime, transformTime, featuresInAst, statisticsPath, topLevelStatisticsPath))
                 }
                 (Some(result_ast), transformTime, List())
             } else {
@@ -1120,8 +1111,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
     /**
      * Returns the new absolute file path for the resulting transformation file.
-     * @param outputStem
-     * @return
      */
     private def ifdeftoifFilePath(fName: String): String = {
         def fileNameWithoutExtension(outputStem: String): String = {
@@ -1168,7 +1157,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-     * Makes #ifdef to if transformation on given translation unit.
+     * Runs #ifdef to if transformation on given translation unit.
      */
     def transformAst(tunit: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap,
                      parseTime: Long, featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty): (TranslationUnit, String) = {
@@ -1177,15 +1166,17 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         val tb = java.lang.management.ManagementFactory.getThreadMXBean
 
         fillIdMap(tunit)
-        features = IfdeftoifUtils.getSingleFeatures(tunit)
+        // We might have replaced some features during AST part replacement and already added them to the set.
+        // They might not occur in the AST anymore but still should be accounted for.
+        featureExpressions ++= getSingleFeatures(tunit)
         defuse = decluse
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
         val result = transformRecursive(tunit, trueF, true)
         val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
 
-        val csvEntry = createCsvEntry(tunit, result, "unnamed", parseTime, transformTime, features.size)
-        (TranslationUnit(getInitialTranslationUnit(features).defs ++ result.asInstanceOf[TranslationUnit].defs), csvEntry)
+        val csvEntry = createCsvEntry(tunit, result, "unnamed", parseTime, transformTime, featuresInAst)
+        (TranslationUnit(getInitialTranslationUnit(featureExpressions).defs ++ result.asInstanceOf[TranslationUnit].defs), csvEntry)
     }
 
     /**
@@ -1207,7 +1198,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                              */
                             writeToFile("ifdeftoif_progress.txt", entry.asInstanceOf[AST].range.get.toString() + " from " + o)
                         }
-                        val fExps = computeFExpsForDuplication(entry, o.feature.and(curCtx), isTopLevel)
+                        val newCtx = curCtx.and(ft)
+                        val fExps = computeFExpsForDuplication(entry, newCtx, isTopLevel)
                         if (exceedsThreshold(fExps)) {
                             List(o)
                         } else {
@@ -1220,16 +1212,16 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         Ex: void main() { int a = id2i.x64 ? 0 : 1 }
                                         Not possible for assignments on global variables!
                                          */
-                                        val exprFeatures = computeFExpsForDuplication(expr, o.feature.and(curCtx))
+                                        val exprFeatures = computeFExpsForDuplication(expr, newCtx)
                                         if (exceedsThreshold(exprFeatures)) {
                                             List(o)
                                         } else {
                                             val condExpr = convertToCondExpr(init, exprFeatures, curCtx)
                                             List(transformRecursive(Opt(ft,
-                                                InitDeclaratorI(decl, attributes, Some(condExpr))), curCtx.and(ft)))
+                                                InitDeclaratorI(decl, attributes, Some(condExpr))), newCtx))
                                         }
                                     } else {
-                                        List(transformRecursive(o, curCtx.and(ft)))
+                                        List(transformRecursive(o, newCtx))
                                     }
                                 case DeclarationStatement(decl: Declaration) =>
                                     val result = handleDeclarations(Opt(ft, decl), curCtx, isTopLevel)
@@ -1242,11 +1234,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     result
                                 case i@Initializer(elem, expr) =>
                                     if (fExps.isEmpty) {
-                                        List(replaceAndTransform(Opt(trueF, Initializer(elem, expr)), o.feature.and(curCtx)))
+                                        List(replaceAndTransform(Opt(trueF, Initializer(elem, expr)), newCtx))
                                     } else {
                                         List(Opt(trueF, convertToCondExpr(i, fExps, curCtx)))
                                     }
-                                case e@Enumerator(_, None) =>
+                                case e: Enumerator =>
                                     if (!fExps.isEmpty) {
                                         countDuplications(o.entry, fExps.size, isTopLevel)
                                         fExps.map(x => Opt(trueF, transformRecursive(convertEnumId(replaceOptAndId(e, x), x), x)))
@@ -1255,7 +1247,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     } else {
                                         List(Opt(trueF,
                                             transformRecursive(convertEnumId(replaceOptAndId(e, o.feature), o.feature),
-                                                o.feature.and(curCtx))))
+                                                newCtx)))
                                     }
                                 /*case e@Enumerator(_, Some(expr)) =>
                                     val exprFeatures = computeFExpsForDuplication(expr, o.feature.and(curCtx))
@@ -1275,20 +1267,20 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     }*/
                                 case sd@StructDeclaration(qual, decl) =>
                                     if (!fExps.isEmpty) {
-                                        countDuplications(o.entry, fExps.size, isTopLevel)
+                                        countDuplications(entry, fExps.size, isTopLevel)
                                         fExps.map(x => replaceAndTransform(Opt(trueF, StructDeclaration(qual, convertStructId(decl, x))), x))
                                     } else if (ft.equals(trueF)) {
                                         List(transformRecursive(o, curCtx))
                                     } else {
                                         List(replaceOptAndId(Opt(trueF,
-                                            StructDeclaration(qual, convertStructId(decl, o.feature))), o.feature))
+                                            StructDeclaration(qual, convertStructId(decl, ft))), ft))
                                     }
                                 case _: FunctionDef | _: NestedFunctionDef =>
                                     val result = handleFunction(o)
                                     countDuplications(o.entry, result.size, isTopLevel)
                                     result
                                 case _: IfStatement | _: WhileStatement | _: SwitchStatement | _: DoStatement | _: ForStatement =>
-                                    val result = handleStatement(o, ft.and(curCtx))
+                                    val result = handleStatement(o, newCtx)
                                     countDuplications(o.entry, result.size, isTopLevel)
                                     result
                                 case r: ReturnStatement =>
@@ -1298,7 +1290,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         if (ft.equals(trueF)) {
                                             List(transformRecursive(o, curCtx))
                                         } else {
-                                            List(Opt(trueF, statementToIf(replaceAndTransform(r, ft), ft, curCtx)))
+                                            List(Opt(trueF, statementToIf(replaceAndTransform(r, newCtx), newCtx, curCtx)))
                                         }
                                     }
                                 case g: GotoStatement =>
@@ -1310,21 +1302,20 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         List(Opt(trueF, statementToIf(replaceOptAndId(g, ft), ft, curCtx)))
                                     }
                                 case e: ExprStatement =>
-                                    val realFeature = curCtx.and(o.feature)
-                                    val features = computeFExpsForDuplication(e, realFeature)
+                                    val features = computeFExpsForDuplication(e, newCtx)
                                     if (!features.isEmpty) {
-                                        countDuplications(o.entry, features.size, isTopLevel)
+                                        countDuplications(entry, features.size, isTopLevel)
                                         features.map(x => Opt(trueF,
-                                            IfStatement(One(toCExpr(fExprDiff(curCtx, x.and(realFeature)))),
-                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), x.and(realFeature))))),
+                                            IfStatement(One(toCExpr(fExprDiff(curCtx, x.and(newCtx)))),
+                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), x.and(newCtx))))),
                                                 List(),
                                                 None)))
                                     } else if (ft.equals(trueF)) {
                                         List(transformRecursive(o, curCtx))
                                     } else {
                                         val result = List(Opt(trueF,
-                                            IfStatement(One(toCExpr(realFeature)),
-                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), realFeature)))),
+                                            IfStatement(One(toCExpr(newCtx)),
+                                                One(CompoundStatement(List(replaceAndTransform(Opt(trueF, e), newCtx)))),
                                                 List(),
                                                 None)))
                                         result
@@ -1332,7 +1323,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 case LabelStatement(i: Id, attr) =>
                                     if (defuse.containsKey(i) && !ft.equivalentTo(trueF)) {
                                         addIdUsages(i, ft.and(curCtx))
-                                        List(Opt(trueF, LabelStatement(prependCtxPrefix(i, ft.and(curCtx)), attr)))
+                                        List(Opt(trueF, LabelStatement(prependCtxPrefix(i, newCtx), attr)))
                                     } else {
                                         List(o)
                                     }
@@ -1354,11 +1345,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 case cs: CompoundStatement =>
                                     List(Opt(trueF,
                                         IfStatement(
-                                            One(toCExpr(o.feature)),
+                                            One(toCExpr(ft)),
                                             One(replaceAndTransform(cs, o.feature)),
                                             List(),
                                             None)))
-                                case _ => List(transformRecursive(o, curCtx.and(o.feature)))
+                                case _ => List(transformRecursive(o, newCtx))
                             }
                         }
                     case k => List(transformRecursive(k, curCtx))
@@ -1379,9 +1370,37 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         /*feature.and(context)*/
     }
 
+    def prepareASTforIfdef[T <: Product](t: T, currentContext: FeatureExpr = FeatureExprFactory.True): T = {
+        val r = alltd(rule {
+            case l: List[Opt[_]] =>
+                l.flatMap(x => x match {
+                    case o@Opt(ft: FeatureExpr, entry) =>
+                        if (ft.mex(currentContext).isTautology()) {
+                            List()
+                        } else if (ft.implies(currentContext).isTautology()) {
+                            List(prepareASTforIfdef(o, ft))
+                        } else {
+                            List(prepareASTforIfdef(Opt(ft.and(currentContext), entry), ft.and(currentContext)))
+                        }
+                })
+            case o@One(st: Statement) =>
+                st match {
+                    case cs: CompoundStatement =>
+                        One(prepareASTforIfdef(st, currentContext))
+                    case k =>
+                        One(CompoundStatement(List(Opt(FeatureExprFactory.True, prepareASTforIfdef(k, currentContext)))))
+                }
+        })
+        r(t) match {
+            case None =>
+                t
+            case k =>
+                k.get.asInstanceOf[T]
+        }
+    }
+
     /**
      * Computes the cartesian product of a list of lists of FeatureExpressions using the boolean 'and' operator.
-     * Filter unsatisfiable results.
      * Ex: List( List(a, b), List(c, d, e)) becomes List(a&c, a&d, a&e, b&c, b&d, b&e).
      */
     def computeCarthesianProduct(list: List[List[FeatureExpr]], context: FeatureExpr): List[FeatureExpr] = {
@@ -1410,7 +1429,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     })
             }
         }
-
+        val potentialResultSize1 = list.map(x => x.size).foldLeft(1)(_ * _)
+        val distinctSingleFeatures = list.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
+        val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toInt
+        val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
         // TODO fgarbe: Why filter here again? The results of the and operation are already checked for satisfiablity.
       computeCarthesianProductHelper(list, context).filter(x => x.isSatisfiable() && x.isSatisfiable(fm))
     }
@@ -1419,14 +1441,14 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Checks whether given feature list contains exactly 1 False feature. Used to tag featuresForDuplications where
      * the number of features exceeds the variantThreshold.
      */
-    private def exceedsThreshold(lst: List[FeatureExpr]): Boolean = {
+    def exceedsThreshold(lst: List[FeatureExpr]): Boolean = {
         lst.size == 1 && lst.head.equals(FeatureExprFactory.False)
     }
 
     /**
      * Takes a list of lists and gives us a list of lists where each list is distinct to each other list.
      */
-    private def computeDistinctLists(listOfLists: List[List[FeatureExpr]]): List[List[FeatureExpr]] = {
+    def computeDistinctLists(listOfLists: List[List[FeatureExpr]]): List[List[FeatureExpr]] = {
         if (listOfLists.isEmpty) {
             List()
         } else if (listOfLists.size == 1) {
@@ -1637,7 +1659,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Returns the next relevant features, if no new relevant features are computed returns the current context.
      * Used in order to not lose any elements when using features.map(x => someStatement(x)).
      */
-    private def computeNextRelevantFeaturesUnempty(a: Any, currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
+    def computeNextRelevantFeaturesUnempty(a: Any, currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
         var result = computeFExpsForDuplication(a, currentContext, isTopLevel)
         if (result.isEmpty) {
             result = List(currentContext)
@@ -1675,7 +1697,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Takes a look at the CompoundStatements and CaseStatements AS WELL as the expression inside the CaseStatements
      * in a SwitchStatement in order to determine the list of FeatureExpressions needed for duplication purposes.
      */
-    private def computeTotalCaseFeatures(cmpStmt: CompoundStatement, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
+    def computeTotalCaseFeatures(cmpStmt: CompoundStatement, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
         val caseFeatures = getFeatureCombinations(cmpStmt.innerStatements.flatMap(x => {
             x.entry match {
                 case cs: CaseStatement =>
@@ -1697,7 +1719,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * expressions that are found inside the Opt nodes in given element a.
      * This also checks subelements of a unless they are new statements like for example an ExpressionStatement inside an IfStatement.
      */
-    private def getNextOptFeatures(a: Any, currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
+    def getNextOptFeatures(a: Any, currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
         def getOptFeature(a: Any, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
             a match {
                 case Some(d: Initializer) =>
@@ -1751,13 +1773,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * expressions that are found for identifiers within given element a. This also checks subelements of a unless
      * they are new statements like for example an ExpressionStatement inside an IfStatement.
      */
-    private def getNextIdFeatures(a: Any, curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
-        def getVariableIds(a: Any): List[Id] = {
+    def getNextIdFeatures(a: Any, currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
+        def getVariableIds(a: Any, currentContext: FeatureExpr = trueF): List[Id] = {
             a match {
                 case d: Initializer =>
                     //println("Stopping at: " + d)
                     if (isTopLevel) {
-                        d.productIterator.toList.flatMap(getVariableIds(_))
+                        d.productIterator.toList.flatMap(getVariableIds(_, currentContext))
                     } else {
                         List()
                     }
@@ -1786,7 +1808,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         //println("IdFeat canceled at: " + i)
                         List()
                     }
-                case Opt(ft, entry: Product) => entry.productIterator.toList.flatMap(getVariableIds(_))
+                case d@Opt(ft, entry: Product) =>
+                    entry.productIterator.toList.flatMap(getVariableIds(_, currentContext))
                 case i: Id =>
                     if (idsToBeReplaced.containsKey(i)) {
                         List(i)
@@ -1794,13 +1817,16 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         //println("IdFeat canceled at: " + i)
                         List()
                     }
-                case p: Product => p.productIterator.toList.flatMap(getVariableIds(_))
-                case _ => List()
+                case p: Product =>
+                    p.productIterator.toList.flatMap(getVariableIds(_, currentContext))
+                case k =>
+                    //println("IdFeat canceled at: " + k)
+                    List()
             }
         }
-        val ids = getVariableIds(a)
-        val listOfLists = ids.map(x => idsToBeReplaced.get(x).toList.map(y => y.and(curCtx)).filterNot(x => x.equivalentTo(FeatureExprFactory.False)))
-        computeCarthesianProduct(listOfLists, curCtx).filter(z => z.isSatisfiable(fm) && !z.equivalentTo(trueF))
+        val ids = getVariableIds(a, currentContext)
+        val listOfLists = ids.map(x => idsToBeReplaced.get(x).toList.map(y => y.and(currentContext)).filterNot(x => x.equivalentTo(FeatureExprFactory.False)))
+        computeCarthesianProduct(listOfLists, currentContext).filter(z => z.isSatisfiable(fm) && !z.equivalentTo(trueF))
     }
 
     /**
@@ -1827,19 +1853,19 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Calls the proper function to transform a statement st depending on the type of st.
      */
-    private def handleStatement(opt: Opt[_], curCtx: FeatureExpr = trueF): List[Opt[_]] = {
+    def handleStatement(opt: Opt[_], currentContext: FeatureExpr = trueF): List[Opt[_]] = {
         opt.entry match {
             case i: IfStatement =>
-                handleIfStatementConditional(opt, curCtx)
-            //handleIfStatement(opt, curCtx)
+                handleIfStatementConditional(opt, currentContext)
+            //handleIfStatement(opt, currentContext)
             case f: ForStatement =>
-                handleForStatement(opt.asInstanceOf[Opt[Statement]], curCtx)
+                handleForStatement(opt.asInstanceOf[Opt[Statement]], currentContext)
             case w: WhileStatement =>
-                handleWSDStatements(opt.asInstanceOf[Opt[Statement]], curCtx)
+                handleWSDStatements(opt.asInstanceOf[Opt[Statement]], currentContext)
             case d: DoStatement =>
-                handleWSDStatements(opt.asInstanceOf[Opt[Statement]], curCtx)
+                handleWSDStatements(opt.asInstanceOf[Opt[Statement]], currentContext)
             case s: SwitchStatement =>
-                handleWSDStatements(opt.asInstanceOf[Opt[Statement]], curCtx)
+                handleWSDStatements(opt.asInstanceOf[Opt[Statement]], currentContext)
 
             case k =>
                 List()
@@ -1853,7 +1879,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * 3. Transform usual if-statement (possible variable ID definition in the condition!) recursive call for thenBranch
      * 4. Transform ElifStatements
      */
-    private def handleIfStatementConditional(optIf: Opt[_], currentContext: FeatureExpr = trueF): List[Opt[_]] = {
+    def handleIfStatementConditional(optIf: Opt[_], currentContext: FeatureExpr = trueF): List[Opt[_]] = {
 
         // 1. Step
         if (!optIf.feature.equivalentTo(trueF)) {
@@ -2035,7 +2061,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * 2. Transform conditionals in the body of the ForStatement
      * 3. Transform usual ForStatement by looking at variability in its expressions
      */
-    private def handleForStatement(opt: Opt[Statement], currentContext: FeatureExpr = trueF): List[Opt[Statement]] = {
+    def handleForStatement(opt: Opt[Statement], currentContext: FeatureExpr = trueF): List[Opt[Statement]] = {
 
         // 1. Step
         if (!opt.feature.equivalentTo(trueF)) {
@@ -2069,7 +2095,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Handles while / switch / do statements (they have a similar structure).
      */
-    private def handleWSDStatements(opt: Opt[Statement], currentContext: FeatureExpr = trueF): List[Opt[Statement]] = {
+    def handleWSDStatements(opt: Opt[Statement], currentContext: FeatureExpr = trueF): List[Opt[Statement]] = {
         // 1. Step
         if (!opt.feature.equivalentTo(trueF)) {
             opt.entry match {
@@ -2150,7 +2176,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Transforms given declaration. Transformation has different effects, declaration could be duplicated / renamed etc.
      */
-    private def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
+    def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
                 if (!init.isEmpty && init.head.entry.getName.equals("uncompress_main")) {
@@ -2250,7 +2276,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Temporary function, needs improvement and verification. Ignore for now.
      */
-    private def handleDeclarations_new(optDeclaration: Opt[Declaration], currentContext: FeatureExpr = trueF): List[Opt[Declaration]] = {
+    def handleDeclarations_new(optDeclaration: Opt[Declaration], currentContext: FeatureExpr = trueF): List[Opt[Declaration]] = {
         def convertSpecifiers(declSpecs: List[Opt[Specifier]], feat: FeatureExpr = trueF): List[Opt[Specifier]] = {
             if (!feat.equivalentTo(trueF)) {
                 declSpecs.map(x => x match {
@@ -2304,7 +2330,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * 1. Transform optional function (#ifdef A \n void main() {..] \n #endif)
      * 2. Transform function by looking at variability in specifiers, declarators and parameters
      */
-    private def handleFunction(oFunction: Opt[_], context: FeatureExpr = trueF): List[Opt[_]] = {
+    def handleFunction(oFunction: Opt[_], context: FeatureExpr = trueF): List[Opt[_]] = {
         var newFunction = oFunction
 
         var functionName: String = ""
