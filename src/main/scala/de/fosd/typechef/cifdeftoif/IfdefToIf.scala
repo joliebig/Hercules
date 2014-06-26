@@ -61,7 +61,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var featureExpressions: Set[SingleFeatureExpr] = Set()
     private var featuresInAst: Int = 0
     // Default configuration flag, can either be '0' or '1'
-    private val defaultConfigurationParameter = Constant("0")
+    val defaultValue = "0"
+    private val defaultConfigurationParameter = Constant(defaultValue)
     // Default feature selection state for features which do not appear in the .config file, false = off, true = on
     private val defaultFeatureSelection = false
     private var isFirstRun = true
