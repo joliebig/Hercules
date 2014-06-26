@@ -1,29 +1,16 @@
 package de.fosd.typechef.cifdeftoif
 
-import org.junit.{Ignore, Test}
-import de.fosd.typechef.parser.c._
-import de.fosd.typechef.typesystem._
 import java.io._
 import java.util
-import de.fosd.typechef.featureexpr.{FeatureModel, FeatureExprParser, FeatureExprFactory}
+
+import de.fosd.typechef.conditional.{Choice, One, Opt}
+import de.fosd.typechef.featureexpr.{FeatureExprFactory, FeatureExprParser, FeatureModel}
 import de.fosd.typechef.lexer.FeatureExprLib
-import io.Source
-import scala.Some
-import de.fosd.typechef.parser.c.VoidSpecifier
-import de.fosd.typechef.parser.c.DoubleSpecifier
-import de.fosd.typechef.conditional.One
-import de.fosd.typechef.parser.c.Id
-import de.fosd.typechef.parser.c.Constant
-import de.fosd.typechef.parser.c.CompoundStatement
-import de.fosd.typechef.conditional.Opt
-import de.fosd.typechef.parser.c.AtomicNamedDeclarator
-import de.fosd.typechef.conditional.Choice
-import de.fosd.typechef.parser.c.TranslationUnit
-import de.fosd.typechef.typesystem.IdentityIdHashMap
-import de.fosd.typechef.parser.c.IntSpecifier
-import de.fosd.typechef.parser.c.FunctionDef
-import scala.Tuple2
-import de.fosd.typechef.parser.c.StaticSpecifier
+import de.fosd.typechef.parser.c.{AtomicNamedDeclarator, CompoundStatement, Constant, DoubleSpecifier, FunctionDef, Id, IntSpecifier, StaticSpecifier, TranslationUnit, VoidSpecifier, _}
+import de.fosd.typechef.typesystem.{IdentityIdHashMap, _}
+import org.junit.{Ignore, Test}
+
+import scala.io.Source
 
 class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper with EnforceTreeHelper {
 
@@ -95,6 +82,11 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val useDefMap = ts.getUseDeclMap
         val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
         print("--Parsed--")
+
+        if (!i.checkAst(source_ast)) {
+            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
+            return (0, TranslationUnit(List()))
+        }
 
         val startTransformation = System.currentTimeMillis()
         val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
