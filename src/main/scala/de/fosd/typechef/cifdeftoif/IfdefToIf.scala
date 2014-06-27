@@ -1392,8 +1392,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def computeCarthesianProduct(list: List[List[FeatureExpr]], context: FeatureExpr, a: Any = List()): List[FeatureExpr] = {
         def computeCarthesianProductHelper(listOfLists: List[List[FeatureExpr]], currentContext: FeatureExpr): List[FeatureExpr] = {
-            val preparedList = listOfLists.map(x => x.filterNot(y => y.equivalentTo(FeatureExprFactory.False) || y.equivalentTo(trueF) || y.equivalentTo(currentContext))).filterNot(x => x.isEmpty)
-            preparedList match {
+            listOfLists match {
                 case Nil =>
                     List()
                 case x :: Nil =>
@@ -1416,7 +1415,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     })
             }
         }
-        val potentialResultSize1 = computeDistinctLists(list).map(x => x.size).foldLeft(1)(_ * _)
+        val preparedList = list.map(x => x.filterNot(y => y.equivalentTo(FeatureExprFactory.False) || y.equivalentTo(trueF) || y.equivalentTo(context))).filterNot(x => x.isEmpty)
+        val potentialResultSize1 = computeDistinctLists(preparedList).map(x => x.size).foldLeft(1)(_ * _)
         val distinctSingleFeatures = list.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
         val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toInt
         val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
@@ -1437,7 +1437,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             return List(FeatureExprFactory.False)
         }
         // TODO fgarbe: Why filter here again? The results of the and operation are already checked for satisfiablity.
-      computeCarthesianProductHelper(list, context).filter(x => x.isSatisfiable() && x.isSatisfiable(fm))
+        computeCarthesianProductHelper(preparedList, context)
     }
 
     /**
