@@ -1416,9 +1416,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             }
         }
         val preparedList = list.map(x => x.filterNot(y => y.equivalentTo(FeatureExprFactory.False) || y.equivalentTo(trueF) || y.equivalentTo(context))).filterNot(x => x.isEmpty)
-        val potentialResultSize1 = computeDistinctLists(preparedList).map(x => x.size).foldLeft(1)(_ * _)
+        val distinctList = computeDistinctLists(preparedList).map(x => x.size.toLong)
+        val potentialResultSize1 = distinctList.foldLeft(1.toLong)(_ * _)
         val distinctSingleFeatures = list.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
-        val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toInt
+        val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toLong
         val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
         if (potentialResultSize > duplicationThreshold) {
             var errorMessage = ""
@@ -1462,7 +1463,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 val result = x.diff(superList)
                 superList = (superList ++ x).distinct
                 result
-            })
+            }).filter(x => !x.isEmpty)
         }
     }
 
@@ -1578,8 +1579,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         result
                     } else {
                         val optResult = computeCarthesianProduct(featureBufferList, currentContext, a)
-                        val result = computeCarthesianProduct(List(optResult, identFeatureList.diff(optResult)), currentContext, a)
-                        result
+                        if (exceedsThreshold(optResult)) {
+                            List(FeatureExprFactory.False)
+                        } else {
+                            val result = computeCarthesianProduct(List(optResult, identFeatureList.diff(optResult)), currentContext, a)
+                            result
+                        }
                     }
                 }
             }
