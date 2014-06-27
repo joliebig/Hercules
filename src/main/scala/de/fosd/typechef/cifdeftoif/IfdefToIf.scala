@@ -1400,7 +1400,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case x :: xs =>
                     xs.foldLeft(x)((first, second) => {
                         if (first.size > 1000) {
-                            println("Currently computed " + first.size + " different features.")
+                            println("Currently computed " + first.size + " different features for element:\n" + a)
                         }
                         first.flatMap(y => {
                             second.flatMap(z => {
