@@ -83,7 +83,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
         print("--Parsed--")
 
-        if (!i.checkAst(source_ast)) {
+      if (!i.checkAstSilent(source_ast)) {
             println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
             return (0, TranslationUnit(List()))
         }
