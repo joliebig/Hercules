@@ -404,7 +404,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def writeExternIfdeftoIfStruct(featureConfigPath: String) = {
         val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
         val structDeclaration = Opt(trueF, getOptionStruct(loadSerializedFeatureNames(serializedFeaturePath)))
-        val externDeclaration = Opt(True, Declaration(List(Opt(True, ExternSpecifier()), Opt(True, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(True, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+      val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
         val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath))
 
         PrettyPrinter.printD(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath)
@@ -1917,7 +1917,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     }
                     val stmtFeatures = statementTuple.map(x => x._1)
                     val elsFeatures = elseTuple.map(x => x._1)
-                    val carthProduct = computeCarthesianProduct(List(stmtFeatures, elsFeatures), currentContext, optIf.entry)
+                  val carthProduct = computeCart
+                  hesianProduct(List(stmtFeatures, elsFeatures), currentContext, optIf.entry)
                     if (exceedsThreshold(carthProduct)) {
                         return List(optIf)
                     }
