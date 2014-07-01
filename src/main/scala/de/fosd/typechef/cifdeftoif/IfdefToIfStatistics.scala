@@ -1,22 +1,12 @@
 package de.fosd.typechef.cifdeftoif
 
 import java.io._
-import de.fosd.typechef.parser.c._
-import de.fosd.typechef.featureexpr.{FeatureModel, FeatureExprFactory, FeatureExpr}
-import org.kiama.rewriting.Rewriter._
-import de.fosd.typechef.parser.c.Enumerator
-import de.fosd.typechef.parser.c.EnumSpecifier
-import de.fosd.typechef.parser.c.StructOrUnionSpecifier
-import de.fosd.typechef.parser.c.TranslationUnit
-import de.fosd.typechef.parser.c.IfStatement
-import de.fosd.typechef.parser.c.DeclParameterDeclList
-import de.fosd.typechef.parser.c.Declaration
-import de.fosd.typechef.parser.c.DeclIdentifierList
-import de.fosd.typechef.parser.c.StructDeclaration
-import de.fosd.typechef.parser.c.ElifStatement
-import de.fosd.typechef.parser.c.FunctionDef
+
 import de.fosd.typechef.conditional.Opt
-import de.fosd.typechef.parser.c.TypedefSpecifier
+import de.fosd.typechef.featureexpr.{FeatureExpr, FeatureExprFactory, FeatureModel}
+import de.fosd.typechef.parser.c.{DeclIdentifierList, DeclParameterDeclList, Declaration, ElifStatement, EnumSpecifier, Enumerator, FunctionDef, IfStatement, StructDeclaration, StructOrUnionSpecifier, TranslationUnit, TypedefSpecifier, _}
+import org.kiama.rewriting.Rewriter._
+
 import scala.reflect.ClassTag
 
 trait IfdefToIfStatisticsInterface {
@@ -41,7 +31,7 @@ trait IfdefToIfStatisticsInterface {
 
     def exportStatistics(tuple: (List[(String, String)], List[(String, String)])) = {}
 
-    def createCsvDuplicationString(ast: TranslationUnit, fileName: String): (String, String) = {
+    def createCsvDuplicationString(source_ast: TranslationUnit, new_ast: TranslationUnit, fileName: String): (String, String) = {
         ("", "")
     }
 
@@ -207,11 +197,11 @@ trait IfdefToIfStatistics extends IfdefToIfStatisticsInterface with IOUtilities 
             //writeToFile(statisticsPath, getCSVHeader)
         }
 
-        val csvEntry = createCsvEntry(source_ast, source_ast, fileName, lexAndParseTime, transformTime, noOfFeatures)
+        val csvEntry = createCsvEntry(source_ast, new_ast, fileName, lexAndParseTime, transformTime, noOfFeatures)
         toAppend = (statisticsPath, csvEntry) :: toAppend
         //appendToFile(statisticsPath, csvEntry)
 
-        val csvDuplications = createCsvDuplicationString(source_ast, fileName)
+        val csvDuplications = createCsvDuplicationString(source_ast, new_ast, fileName)
         if (!(new File(topLevelStatisticsPath).exists)) {
             toWrite = (topLevelStatisticsPath, csvDuplications._1) :: toWrite
         }
@@ -345,20 +335,23 @@ trait IfdefToIfStatistics extends IfdefToIfStatisticsInterface with IOUtilities 
     /**
      * Creates a string with all duplication data from the ifdef to if configuration.
      */
-    override def createCsvDuplicationString(ast: TranslationUnit, fileName: String): (String, String) = {
-        val headers = List("FileName", "Typedefs", "Optional Typedefs", "Typedefs to duplicate", "Typedef duplications",
-            "StructUnions", "Optional StructUnions", "StructUnions to duplicate", "StructUnion duplications",
-            "Enums", "Optional Enums", "Enums to duplicate", "Enum duplications",
-            "Functions", "Optional Functions", "Functions to duplicate", "Function duplications",
-            "Function forward declarations", "Optional function forward declarations", "Function forward declarations to duplicate", "Function forward declaration duplications",
-            "Variables", "Optional Variables", "Variables to duplicate", "Variable Duplications")
-        val elements = getNumberOfTopLevelDeclarationElements(ast)
-        val numbers = fileName :: List(elements._1, noOfOptionalTypedefs, noOfTypedefsToDuplicate, noOfTypedefDuplications,
-            elements._2, noOfOptionalStructUnions, noOfStructUnionsToDuplicate, noOfStructUnionDuplications,
-            elements._3, noOfOptionalEnums, noOfEnumsToDuplicate, noOfEnumDuplications,
-            elements._4, noOfOptionalFunctions, noOfFunctionsToDuplicate, noOfFunctionDuplications,
-            elements._5, noOfOptionalForwardFunctions, noOfForwardFunctionsToDuplicate, noOfForwardFunctionDuplications,
-            elements._6, noOfOptionalVariables, noOfVariablesToDuplicate, noOfVariableDuplications).map(x => x.toString)
+    override def createCsvDuplicationString(source_ast: TranslationUnit, new_ast: TranslationUnit, fileName: String): (String, String) = {
+        val headers = List("FileName",
+            "Original Typedefs", "Hercules Typedefs", "Optional Typedefs", "Typedefs to duplicate", "Typedef duplications",
+            "Original StructUnions", "Hercules StructUnions", "Optional StructUnions", "StructUnions to duplicate", "StructUnion duplications",
+            "Original Enums", "Hercules Enums", "Optional Enums", "Enums to duplicate", "Enum duplications",
+            "Original Functions", "Hercules Functions", "Optional Functions", "Functions to duplicate", "Function duplications",
+            "Original Function forward declarations", "Hercules Function forward declarations", "Optional function forward declarations", "Function forward declarations to duplicate", "Function forward declaration duplications",
+            "Original Variables", "Hercules Variables", "Optional Variables", "Variables to duplicate", "Variable Duplications")
+        val source_elements = getNumberOfTopLevelDeclarationElements(source_ast)
+        val new_elements = getNumberOfTopLevelDeclarationElements(new_ast)
+        val numbers = fileName :: List(
+            source_elements._1, new_elements._1, noOfOptionalTypedefs, noOfTypedefsToDuplicate, noOfTypedefDuplications,
+            source_elements._2, new_elements._2, noOfOptionalStructUnions, noOfStructUnionsToDuplicate, noOfStructUnionDuplications,
+            source_elements._3, new_elements._3, noOfOptionalEnums, noOfEnumsToDuplicate, noOfEnumDuplications,
+            source_elements._4, new_elements._4, noOfOptionalFunctions, noOfFunctionsToDuplicate, noOfFunctionDuplications,
+            source_elements._5, new_elements._5, noOfOptionalForwardFunctions, noOfForwardFunctionsToDuplicate, noOfForwardFunctionDuplications,
+            source_elements._6, new_elements._6, noOfOptionalVariables, noOfVariablesToDuplicate, noOfVariableDuplications).map(x => x.toString)
         (createCommaSeparatedString(headers) ++ "\n", createCommaSeparatedString(numbers) ++ "\n")
     }
 
