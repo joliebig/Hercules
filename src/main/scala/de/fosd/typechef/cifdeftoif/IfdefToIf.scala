@@ -1917,8 +1917,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     }
                     val stmtFeatures = statementTuple.map(x => x._1)
                     val elsFeatures = elseTuple.map(x => x._1)
-                  val carthProduct = computeCart
-                  hesianProduct(List(stmtFeatures, elsFeatures), currentContext, optIf.entry)
+                    val carthProduct = computeCarthesianProduct(List(stmtFeatures, elsFeatures), currentContext, optIf.entry)
                     if (exceedsThreshold(carthProduct)) {
                         return List(optIf)
                     }
