@@ -1,29 +1,16 @@
 package de.fosd.typechef.cifdeftoif
 
-import org.junit.{Ignore, Test}
-import de.fosd.typechef.parser.c._
-import de.fosd.typechef.typesystem._
 import java.io._
 import java.util
-import de.fosd.typechef.featureexpr.{FeatureModel, FeatureExprParser, FeatureExprFactory}
+
+import de.fosd.typechef.conditional.{Choice, One, Opt}
+import de.fosd.typechef.featureexpr.{FeatureExprFactory, FeatureExprParser, FeatureModel}
 import de.fosd.typechef.lexer.FeatureExprLib
-import io.Source
-import scala.Some
-import de.fosd.typechef.parser.c.VoidSpecifier
-import de.fosd.typechef.parser.c.DoubleSpecifier
-import de.fosd.typechef.conditional.One
-import de.fosd.typechef.parser.c.Id
-import de.fosd.typechef.parser.c.Constant
-import de.fosd.typechef.parser.c.CompoundStatement
-import de.fosd.typechef.conditional.Opt
-import de.fosd.typechef.parser.c.AtomicNamedDeclarator
-import de.fosd.typechef.conditional.Choice
-import de.fosd.typechef.parser.c.TranslationUnit
-import de.fosd.typechef.typesystem.IdentityIdHashMap
-import de.fosd.typechef.parser.c.IntSpecifier
-import de.fosd.typechef.parser.c.FunctionDef
-import scala.Tuple2
-import de.fosd.typechef.parser.c.StaticSpecifier
+import de.fosd.typechef.parser.c._
+import de.fosd.typechef.typesystem._
+import org.junit.{Ignore, Test}
+
+import scala.io.Source
 
 class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper with EnforceTreeHelper {
 
@@ -95,6 +82,11 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val useDefMap = ts.getUseDeclMap
         val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
         print("--Parsed--")
+
+      if (!i.checkAstSilent(source_ast)) {
+            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
+            return (0, TranslationUnit(List()))
+        }
 
         val startTransformation = System.currentTimeMillis()
         val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
@@ -856,6 +848,128 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         	 * T, w - ignored
         	 */
         };
+                                 """);
+        println(source_ast)
+        println(testAst(source_ast))
+    }
+
+    @Test def array_test2 {
+        val source_ast = getAST( """
+static const char * const azCompileOpt[] = {
+#if definedEx(SQLITE_CHECK_PAGES)
+  "CHECK_PAGES",
+#endif
+#if definedEx(SQLITE_COVERAGE_TEST)
+  "COVERAGE_TEST",
+#endif
+#if definedEx(SQLITE_ENABLE_CEROD)
+  "ENABLE_CEROD",
+#endif
+#if definedEx(SQLITE_ENABLE_COLUMN_METADATA)
+  "ENABLE_COLUMN_METADATA",
+#endif
+#if definedEx(SQLITE_ENABLE_EXPENSIVE_ASSERT)
+  "ENABLE_EXPENSIVE_ASSERT",
+#endif
+#if (definedEx(SQLITE_ENABLE_FTS4) || definedEx(SQLITE_ENABLE_FTS3))
+  "ENABLE_FTS3",
+#endif
+#if definedEx(SQLITE_ENABLE_FTS4)
+  "ENABLE_FTS4",
+#endif
+#if definedEx(SQLITE_ENABLE_IOTRACE)
+  "ENABLE_IOTRACE",
+#endif
+#if definedEx(SQLITE_ENABLE_LOCKING_STYLE)
+  "ENABLE_LOCKING_STYLE=" "SQLITE_ENABLE_LOCKING_STYLE",
+#endif
+#if definedEx(SQLITE_ENABLE_MEMORY_MANAGEMENT)
+  "ENABLE_MEMORY_MANAGEMENT",
+#endif
+#if definedEx(SQLITE_ENABLE_MEMSYS3)
+  "ENABLE_MEMSYS3",
+#endif
+#if definedEx(SQLITE_ENABLE_MEMSYS5)
+  "ENABLE_MEMSYS5",
+#endif
+#if definedEx(SQLITE_ENABLE_OVERSIZE_CELL_CHECK)
+  "ENABLE_OVERSIZE_CELL_CHECK",
+#endif
+#if definedEx(SQLITE_ENABLE_UPDATE_DELETE_LIMIT)
+  "ENABLE_UPDATE_DELETE_LIMIT",
+#endif
+#if definedEx(SQLITE_HAS_CODEC)
+  "HAS_CODEC",
+#endif
+#if definedEx(SQLITE_HAVE_ISNAN)
+  "HAVE_ISNAN",
+#endif
+#if definedEx(SQLITE_HOMEGROWN_RECURSIVE_MUTEX)
+  "HOMEGROWN_RECURSIVE_MUTEX",
+#endif
+  "MAX_MMAP_SIZE=" "0",
+#if definedEx(SQLITE_NO_SYNC)
+  "NO_SYNC",
+#endif
+#if definedEx(SQLITE_OMIT_ANALYZE)
+  "OMIT_ANALYZE",
+#endif
+#if definedEx(SQLITE_OMIT_ATTACH)
+  "OMIT_ATTACH",
+#endif
+#if definedEx(SQLITE_OMIT_AUTOVACUUM)
+  "OMIT_AUTOVACUUM",
+#endif
+#if definedEx(SQLITE_OMIT_BLOB_LITERAL)
+  "OMIT_BLOB_LITERAL",
+#endif
+#if definedEx(SQLITE_OMIT_BUILTIN_TEST)
+  "OMIT_BUILTIN_TEST",
+#endif
+#if definedEx(SQLITE_OMIT_CAST)
+  "OMIT_CAST",
+#endif
+#if definedEx(SQLITE_OMIT_DECLTYPE)
+  "OMIT_DECLTYPE",
+#endif
+#if definedEx(SQLITE_OMIT_DEPRECATED)
+  "OMIT_DEPRECATED",
+#endif
+#if definedEx(SQLITE_OMIT_EXPLAIN)
+  "OMIT_EXPLAIN",
+#endif
+#if definedEx(SQLITE_OMIT_FOREIGN_KEY)
+  "OMIT_FOREIGN_KEY",
+#endif
+#if definedEx(SQLITE_OMIT_LOAD_EXTENSION)
+  "OMIT_LOAD_EXTENSION",
+#endif
+#if definedEx(SQLITE_OMIT_OR_OPTIMIZATION)
+  "OMIT_OR_OPTIMIZATION",
+#endif
+#if definedEx(SQLITE_OMIT_PAGER_PRAGMAS)
+  "OMIT_PAGER_PRAGMAS",
+#endif
+#if definedEx(SQLITE_OMIT_PRAGMA)
+  "OMIT_PRAGMA",
+#endif
+#if definedEx(SQLITE_OMIT_SUBQUERY)
+  "OMIT_SUBQUERY",
+#endif
+#if definedEx(SQLITE_OMIT_VACUUM)
+  "OMIT_VACUUM",
+#endif
+#if definedEx(SQLITE_OMIT_VIEW)
+  "OMIT_VIEW",
+#endif
+#if definedEx(SQLITE_RTREE_INT_ONLY)
+  "RTREE_INT_ONLY",
+#endif
+#if definedEx(SQLITE_SMALL_STACK)
+  "SMALL_STACK",
+#endif
+  "THREADSAFE=" "1",
+};
                                  """);
         println(source_ast)
         println(testAst(source_ast))

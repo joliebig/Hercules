@@ -10,7 +10,7 @@ import de.fosd.typechef.featureexpr.{FeatureExprFactory, FeatureModel}
 import de.fosd.typechef.lexer.LexerFrontend
 import de.fosd.typechef.options._
 import de.fosd.typechef.parser.TokenReader
-import de.fosd.typechef.parser.c.{CTypeContext, _}
+import de.fosd.typechef.parser.c._
 import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
 import scala.io.Source
 
@@ -18,6 +18,7 @@ import scala.io.Source
 object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
     private var opt: IfdefToIfOptions = new IfdefToIfOptions()
+    private var i: IfdefToIf = new IfdefToIf
 
     private class StopWatch {
         var lastStart: Long = 0
@@ -57,19 +58,13 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
     override def main(args: Array[String]): Unit = {
         opt = new IfdefToIfOptions()
+        i = new IfdefToIf
         try {
             try {
                 opt.parseOptions(args)
             } catch {
-                case o: OptionException => if (!opt.isPrintVersion || !opt.featureConfig) throw o
-            }
-
-            if (opt.featureConfig) {
-                val i = new IfdefToIf
-                val configPath = opt.getFeatureConfigFilename
-                i.writeExternIfdeftoIfStruct(configPath)
-                println("Created extern struct file from configuration at: " + configPath)
-                return
+                case o: OptionException =>
+                    if (!opt.isPrintVersion && !opt.featureConfig) throw o
             }
         }
 
@@ -80,7 +75,20 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 return
         }
 
-        processFile(opt)
+        if (!opt.getFiles().isEmpty()) {
+            processFile(opt)
+            if (!opt.featureConfig) {
+                val configPath = opt.getFeatureConfigFilename
+                i.writeExternIfdeftoIfStruct(configPath)
+                println("Created extern struct file, all features are initialized with default value '" + i.defaultValue + "' at: " + configPath)
+            }
+        }
+
+        if (opt.featureConfig) {
+            val configPath = opt.getFeatureConfigFilename
+            i.writeExternIfdeftoIfStruct(configPath)
+            println("Created extern struct file from configuration at: " + configPath)
+        }
     }
 
     private def processFile(opt: IfdefToIfOptions) {
@@ -105,11 +113,8 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         //no parsing if read serialized ast
         val in = if (ast == null) lex(opt) else null
 
-        var i: IfdefToIf = null
         if (opt.ifdeftoifstatistics) {
             i = new IfdefToIf with IfdefToIfStatistics
-        } else {
-            i = new IfdefToIf
         }
 
         if (opt.parse) {
@@ -171,7 +176,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
                         if (typeCheckStatus) {
-                            val i = new IfdefToIf
                             val fw = new FileWriter(i.basename(opt.getOutputStem()) + ".decluse")
                             fw.write(ts.checkDefuse(ast, ts.getDeclUseMap, ts.getUseDeclMap, fullFM)._1)
                             fw.close()
@@ -257,7 +261,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         errorXML.write()
         if (opt.recordTiming)
             println(stopWatch)
-
     }
 
     private def writeInterface(ast: AST, fm: FeatureModel, opt: IfdefToIfOptions) {
