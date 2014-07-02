@@ -1416,10 +1416,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             }
         }
         val preparedList = list.map(x => x.filterNot(y => y.equivalentTo(FeatureExprFactory.False) || y.equivalentTo(trueF) || y.equivalentTo(context))).filterNot(x => x.isEmpty)
-        val distinctList = computeDistinctLists(preparedList).map(x => x.size.toLong)
-        val potentialResultSize1 = distinctList.foldLeft(1.toLong)(_ * _)
+        val distinctList = computeDistinctLists(preparedList)
+        val potentialResultSize1 = distinctList.map(x => x.size.toLong).foldLeft(1.toLong)(_ * _)
         val distinctSingleFeatures = list.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
-        val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toLong
+        val potentialResultSize2 = Math.pow(2, distinctSingleFeatures.size).toLong
         val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
         if (potentialResultSize > duplicationThreshold) {
             var errorMessage = ""
@@ -1556,7 +1556,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 val featureBufferList = featureBuffer.toList
                 val potentialResultSize1 = featureBufferList.map(x => x.size).foldLeft(1)(_ * _)
                 val distinctSingleFeatures = featureBufferList.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
-                val potentialResultSize2 = Math.pow(distinctSingleFeatures.size, 2).toInt
+                val potentialResultSize2 = Math.pow(2, distinctSingleFeatures.size).toInt
                 val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
                 if (potentialResultSize > duplicationThreshold) {
                     var errorMessage = ""
@@ -2202,9 +2202,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
-                if (!init.isEmpty && init.head.entry.getName.equals("uncompress_main")) {
-                    print("")
-                }
                 val declarationFeature = optDeclaration.feature
                 val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
                 else {
