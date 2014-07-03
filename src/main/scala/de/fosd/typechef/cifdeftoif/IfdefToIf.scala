@@ -48,7 +48,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
     // conversion factor: nanoseconds to milliseconds
     private val nstoms = 1000000
-  private val tb = java.lang.management.ManagementFactory.getThreadMXBean
+    private val tb = java.lang.management.ManagementFactory.getThreadMXBean
 
     private val fs = System.getProperty("file.separator")
 
@@ -75,7 +75,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val externOptionStructPath = path ++ "id2i_optionstruct.h"
     // Path to the statistics file
     private val statisticsPath = path ++ "statistics.csv"
-    // Path to the top levelstatistics file
+    // Path to a file containing skipped program elements where the variant number exceeds the duplicationThreshold
+    private val skippedDuplicationsPath = path ++ "skipped_duplications.txt"
+    // Path to the top level statistics file
     private val topLevelStatisticsPath = path ++ "top_level_statistics.csv"
     // Path to the top levelstatistics file
     private val typeErrorPath = path ++ "type_errors.txt"
@@ -1061,21 +1063,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 // TODO fgarbe: New solution required!
                 if (result_ast_with_position == null) {
                     val errorHeader = "-+ ParseErrors in " + fileNameWithExt + " +-\n"
-                    if (!(new File(typeErrorPath).exists)) {
-                        writeToFile(typeErrorPath, errorHeader + "\n\n")
-                    } else {
-                        appendToFile(typeErrorPath, errorHeader + "\n\n")
-                    }
+                    addToFile(typeErrorPath, errorHeader + errorHeader + "\n\n")
                     (None, 0, List())
                 } else {
                     val errors = getAstErrors(result_ast_with_position)
                     val errorHeader = "-+ TypeErrors in " + fileNameWithExt + " +-\n"
                     val errorString = errors mkString "\n"
-                    if (!(new File(typeErrorPath).exists)) {
-                        writeToFile(typeErrorPath, errorHeader + errorString + "\n\n")
-                    } else {
-                        appendToFile(typeErrorPath, errorHeader + errorString + "\n\n")
-                    }
+                    addToFile(typeErrorPath, errorHeader + errorString + "\n\n")
                     (None, 0, errors)
                 }
             }
@@ -1434,10 +1428,17 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             }
             if (isFirstRun) {
                 System.err.println(errorMessage)
+                addToFile(skippedDuplicationsPath, currentFileName + " <-> " + errorMessage + "\n\n")
             }
             return List(FeatureExprFactory.False)
         }
-        // TODO fgarbe: Why filter here again? The results of the and operation are already checked for satisfiablity.
+        if (potentialResultSize2 < potentialResultSize1) {
+            val result = getFeatureCombinationsFiltered(distinctSingleFeatures, context)
+            result
+        } else {
+            val result = computeCarthesianProductHelper(preparedList, context)
+            result
+        }
         computeCarthesianProductHelper(preparedList, context)
     }
 
@@ -1554,38 +1555,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 result
             } else {
                 val featureBufferList = featureBuffer.toList
-                val potentialResultSize1 = featureBufferList.map(x => x.size).foldLeft(1)(_ * _)
-                val distinctSingleFeatures = featureBufferList.flatten.map(x => x.collectDistinctFeatureObjects).flatten.distinct
-                val potentialResultSize2 = Math.pow(2, distinctSingleFeatures.size).toInt
-                val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
-                if (potentialResultSize > duplicationThreshold) {
-                    var errorMessage = ""
-                    if (a.isInstanceOf[AST]) {
-                        val currentElement = a.asInstanceOf[AST]
-                        if (currentElement.getPositionFrom.getLine.equals(-1))
-                            errorMessage = "[Warning] list size exceeds computation threshold (potentially " + potentialResultSize + " variations) for element:\n" + PrettyPrinter.print(currentElement)
-                        else
-                            errorMessage = "[Warning] list size exceeds computation threshold (potentially " + potentialResultSize + " variations) for element in line " + currentElement.getPositionFrom.getLine + ":\n" + PrettyPrinter.print(currentElement)
-                    } else {
-                        errorMessage = "[Warning] list size exceeds computation threshold (potentially " + potentialResultSize + " variations) for element:\n" + a
-                    }
-                    if (isFirstRun) {
-                        System.err.println(errorMessage)
-                    }
+                val optResult = computeCarthesianProduct(featureBufferList, currentContext, a)
+                if (exceedsThreshold(optResult)) {
                     List(FeatureExprFactory.False)
                 } else {
-                    if (potentialResultSize2 < potentialResultSize1) {
-                        val result = getFeatureCombinationsFiltered(distinctSingleFeatures, currentContext)
-                        result
-                    } else {
-                        val optResult = computeCarthesianProduct(featureBufferList, currentContext, a)
-                        if (exceedsThreshold(optResult)) {
-                            List(FeatureExprFactory.False)
-                        } else {
-                            val result = computeCarthesianProduct(List(optResult, identFeatureList.diff(optResult)), currentContext, a)
-                            result
-                        }
-                    }
+                    val result = computeCarthesianProduct(List(optResult, identFeatureList.diff(optResult)), currentContext, a)
+                    result
                 }
             }
         }
