@@ -2228,9 +2228,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false): List[Opt[Declaration]] = {
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
-                if (!init.isEmpty && init.head.entry.getName.equals("tar_longopts")) {
-                    print("")
-                }
                 val declarationFeature = optDeclaration.feature
                 val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
                 else {
@@ -2244,9 +2241,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             } else {
                                 Opt(ft, EnumSpecifier(Some(i), newEnums))
                             }
-                        case Opt(ft, EnumSpecifier(None, Some(enums))) =>
-                            val newEnums = Some(enums.map(x => Opt(trueF, convertEnumId(x.entry, relevantFeature))))
-                            Opt(ft, EnumSpecifier(None, newEnums))
+                        case o@Opt(ft, e@EnumSpecifier(None, Some(enums))) =>
+                            val specifierFeature = ft.and(relevantFeature)
+                            val result = Opt(trueF, replaceOptAndId(transformRecursive(e, specifierFeature), specifierFeature))
+                            result
                         case o@Opt(ft, EnumSpecifier(Some(i: Id), k)) =>
                             if (defuse.containsKey(i)) {
                                 addIdUsages(i, relevantFeature)
@@ -2387,9 +2385,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             functionName = oFunction.entry.asInstanceOf[FunctionDef].getName
         if (oFunction.entry.isInstanceOf[NestedFunctionDef])
             functionName = oFunction.entry.asInstanceOf[NestedFunctionDef].getName
-        if (functionName.equals("vfork_compressor")) {
-            print("")
-        }
 
         // Insert a call to the ifdeftoif init function as first statement into the main function.
         if (isMainFunction(functionName)) {
