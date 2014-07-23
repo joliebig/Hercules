@@ -1378,7 +1378,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     List(Opt(trueF,
                                         IfStatement(
                                             One(toCExpr(ft)),
-                                            One(replaceAndTransform(cs, o.feature)),
+                                            One(replaceAndTransform(cs, newCtx.and(o.feature))),
                                             List(),
                                             None)))
                                 case _ => List(transformRecursive(o, newCtx))
@@ -1666,7 +1666,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             case gs: GotoStatement =>
                 computationHelper(gs.target, curCtx)
             case fd: FunctionDef =>
-                val featureLists = List(computationHelper(fd.specifiers, curCtx), computationHelper(fd.declarator, curCtx), computationHelper(fd.oldStyleParameters, curCtx))
+                val specList = computationHelper(fd.specifiers, curCtx)
+                val decList = computationHelper(fd.declarator, curCtx)
+                val paramList = computationHelper(fd.oldStyleParameters, curCtx)
+                val featureLists = List(specList, decList, paramList)
                 val result = handleLists(featureLists, curCtx, a)
                 result
             case d@Declaration(declSpecs, init) =>
@@ -1894,8 +1897,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def handleStatement(opt: Opt[_], currentContext: FeatureExpr = trueF): List[Opt[_]] = {
         opt.entry match {
             case i: IfStatement =>
-                handleIfStatementConditional(opt, currentContext)
-            //handleIfStatement(opt, currentContext)
+                //handleIfStatementConditional(opt, currentContext)
+                handleIfStatement(opt, currentContext)
             case f: ForStatement =>
                 handleForStatement(opt.asInstanceOf[Opt[Statement]], currentContext)
             case w: WhileStatement =>
@@ -2400,7 +2403,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             // 1. Step
             optFunction.entry match {
                 case fd@FunctionDef(spec, decl, par, stmt) =>
-                    val features = computeFExpsForDuplication(fd, currentContext).filterNot(x => x.equals(trueF) || x.and(optFunction.feature).isContradiction(fm))
+                    val features = computeFExpsForDuplication(optFunction, currentContext).filterNot(x => x.equals(trueF) || x.and(optFunction.feature).isContradiction(fm))
                     if (features.isEmpty) {
                         List(Opt(trueF, FunctionDef(replaceOptAndId(spec, currentContext), replaceOptAndId(decl, currentContext), replaceOptAndId(par, currentContext), transformRecursive(replaceOptAndId(stmt, currentContext), currentContext))))
                     } else {
