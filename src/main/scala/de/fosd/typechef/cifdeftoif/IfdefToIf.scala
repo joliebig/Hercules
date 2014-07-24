@@ -1375,12 +1375,16 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 case _: EmptyStatement => List()
                                 case _: EmptyExternalDef => List()
                                 case cs: CompoundStatement =>
-                                    List(Opt(trueF,
-                                        IfStatement(
-                                            One(toCExpr(ft)),
-                                            One(replaceAndTransform(cs, newCtx.and(o.feature))),
-                                            List(),
-                                            None)))
+                                    if (ft.equivalentTo(trueF) || ft.equivalentTo(curCtx)) {
+                                        List(Opt(trueF, transformRecursive(cs, newCtx)))
+                                    } else {
+                                        List(Opt(trueF,
+                                            IfStatement(
+                                                One(toCExpr(fExprDiff(curCtx, newCtx))),
+                                                One(replaceAndTransform(cs, newCtx)),
+                                                List(),
+                                                None)))
+                                    }
                                 case _ => List(transformRecursive(o, newCtx))
                             }
                         }
