@@ -173,14 +173,18 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Loads a serialized Set of SingleFeatureExpressions.
      */
     private def loadSerializedFeatureNames(filename: String): Set[SingleFeatureExpr] = try {
-        val fr = new ObjectInputStream(new FileInputStream(filename)) {
-            override protected def resolveClass(desc: ObjectStreamClass) = { /*println(desc);*/ super.resolveClass(desc) }
-        }
-        val sfe = fr.readObject().asInstanceOf[Set[String]]
-        fr.close()
-        sfe.map(FeatureExprFactory.createDefinedExternal)
+      if (!new File(filename).exists) {
+        System.err.println("did not find a serialized feature set, initializing it in: " + filename)
+        return Set()
+      }
+      val fr = new ObjectInputStream(new FileInputStream(filename)) {
+          override protected def resolveClass(desc: ObjectStreamClass) = { /*println(desc);*/ super.resolveClass(desc) }
+      }
+      val sfe = fr.readObject().asInstanceOf[Set[String]]
+      fr.close()
+      sfe.map(FeatureExprFactory.createDefinedExternal)
     } catch {
-        case e: ObjectStreamException => System.err.println("failed loading serialized FeatureSet: " + e.getMessage); null
+        case e: ObjectStreamException => System.err.println("failed loading serialized FeatureSet: " + e.getMessage); Set()
     }
 
     /**
