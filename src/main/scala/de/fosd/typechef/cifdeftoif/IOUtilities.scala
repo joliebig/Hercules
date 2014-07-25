@@ -1,6 +1,6 @@
 package de.fosd.typechef.cifdeftoif
 
-import java.io.PrintWriter
+import java.io.{File, PrintWriter}
 
 trait IOUtilities {
     // http://stackoverflow.com/questions/4604237/how-to-write-to-a-file-in-scala
@@ -25,6 +25,14 @@ trait IOUtilities {
             fileWriter => using(new PrintWriter(fileWriter)) {
                 printWriter => printWriter.print(textData)
             }
+        }
+    }
+
+    def addToFile(fileName: String, textData: String) {
+        if (new File(fileName).exists) {
+            appendToFile(fileName, textData)
+        } else {
+            writeToFile(fileName, textData)
         }
     }
 }
