@@ -49,7 +49,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
     // conversion factor: nanoseconds to milliseconds
     private val nstoms = 1000000
-  private val tb = java.lang.management.ManagementFactory.getThreadMXBean
+    private val tb = java.lang.management.ManagementFactory.getThreadMXBean
 
     private val fs = System.getProperty("file.separator")
 
@@ -79,7 +79,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val statisticsPath = path ++ "statistics.csv"
     // Path to a file containing skipped program elements where the variant number exceeds the duplicationThreshold
     private val skippedDuplicationsPath = path ++ "skipped_duplications.txt"
-    // Path to the top levelstatistics file
+    // Path to the top level statistics file
     private val topLevelStatisticsPath = path ++ "top_level_statistics.csv"
     // Path to the top levelstatistics file
     private val typeErrorPath = path ++ "type_errors.txt"
@@ -173,14 +173,18 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Loads a serialized Set of SingleFeatureExpressions.
      */
     private def loadSerializedFeatureNames(filename: String): Set[SingleFeatureExpr] = try {
-      val fr = new ObjectInputStream(new FileInputStream(filename)) {
-        override protected def resolveClass(desc: ObjectStreamClass) = { /*println(desc);*/ super.resolveClass(desc) }
+      if (!new File(filename).exists) {
+        System.err.println("did not find a serialized feature set, initializing it in: " + filename)
+        return Set()
       }
-      val sfe = fr.readObject().asInstanceOf[Set[String]]
-      fr.close()
-      sfe.map(FeatureExprFactory.createDefinedExternal)
+        val fr = new ObjectInputStream(new FileInputStream(filename)) {
+            override protected def resolveClass(desc: ObjectStreamClass) = { /*println(desc);*/ super.resolveClass(desc) }
+        }
+        val sfe = fr.readObject().asInstanceOf[Set[String]]
+        fr.close()
+        sfe.map(FeatureExprFactory.createDefinedExternal)
     } catch {
-      case e: ObjectStreamException => System.err.println("failed loading serialized FeatureSet: " + e.getMessage); null
+        case e: ObjectStreamException => System.err.println("failed loading serialized FeatureSet: " + e.getMessage); Set()
     }
 
     /**
@@ -255,29 +259,19 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         optionsAst
     }
 
-  /**
-   * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-   * given ast.
-   */
-  def loadAndUpdateFeatures(ast: TranslationUnit) : Unit = {
-    loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
-  }
-  /**
-   * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-   * given feature expression set.
-   */
-  def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]) :Unit = {
-    featureExpressions ++= newFeatures
-    featuresInAst = featureExpressions.size
-    var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
-    if (new File(serializedFeaturePath).exists) {
-      val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-      allFeatureExpressions = featureExpressions ++ loadedFeatures
-    } else {
-      allFeatureExpressions = featureExpressions
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given ast.
+     */
+    private def loadAndUpdateFeatures(ast: TranslationUnit) = {
+        featureExpressions = getSingleFeatures(ast)
+        featuresInAst = featureExpressions.size
+        if (new File(serializedFeaturePath).exists) {
+            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
+            featureExpressions = featureExpressions ++ loadedFeatures
+        }
+        serializeFeatureNames(featureExpressions.map(_.feature.toString), serializedFeaturePath)
     }
-    serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
-  }
 
     /**
      * Converts a set of FeatureExpressions into a struct declaration.
@@ -335,23 +329,21 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * @param featureConfigPath
      * @return
      */
-    private def getInitFunction(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = "", defaultConfiguration:Expr=defaultConfigurationParameter): FunctionDef = {
-      var exprStmts: List[Opt[ExprStatement]] = List()
+    private def getInitFunction(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = ""): FunctionDef = {
+        var exprStmts: List[Opt[ExprStatement]] = List()
 
-      if (!featureConfigPath.isEmpty) {
-        val featureConfigFile = new File(featureConfigPath)
-        val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
+        if (!featureConfigPath.isEmpty) {
+            val featureConfigFile = new File(featureConfigPath)
+            val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
 
-        val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
-        val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
-        val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration))
-        exprStmts = trueExprs ++ otherExprs ++ falseExprs
-      } else {
-        exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfiguration))
-      }
-      FunctionDef(List(Opt(trueF, VoidSpecifier())),
-        AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))),
-        List(), CompoundStatement(exprStmts))
+            val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
+            val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
+            val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfigurationParameter))
+            exprStmts = trueExprs ++ otherExprs ++ falseExprs
+        } else {
+            exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfigurationParameter))
+        }
+        FunctionDef(List(Opt(trueF, VoidSpecifier())), AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))), List(), CompoundStatement(exprStmts))
     }
 
     /**
@@ -417,14 +409,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
      * assigning selection states to features. The feature selection states are read from the given .config file path.
      */
-    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr:Expr=defaultConfigurationParameter, prefix:String = "") = {
-      val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-      val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
-      val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(True, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
-      val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
+    def writeExternIfdeftoIfStruct(featureConfigPath: String) = {
+        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
+        val structDeclaration = Opt(trueF, getOptionStruct(loadSerializedFeatureNames(serializedFeaturePath)))
+      val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath))
 
-      PrettyPrinter.printD(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+        PrettyPrinter.printD(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath)
     }
+
     /**
      * Returns a set of all configuration options in a.
      */
@@ -954,35 +947,35 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             val r = manytd(rule {
                 case l: List[Opt[_]] =>
                     l.flatMap {
-                            case o: Opt[_] =>
-                                // Feature in opt node is equal or less specific than the context, replace opt node feature with True
-                                if (o.feature.equivalentTo(feat, fm) || feat.implies(o.feature).isTautology(fm)) {
-                                    List(o.copy(feature = trueF))
-                                }
-                                    // Feature in opt node is more specific and still satisfiable in the context, don't change opt node
-                                else if (feat.and(o.feature).isSatisfiable(fm)) {
-                                    List(o)
-                                }
-                                    // Feature in opt node is not satisfiable in the current context, remove opt node
-                                else {
-                                    List()
-                                }
-                        }
+                        case o: Opt[_] =>
+                            // Feature in opt node is equal or less specific than the context, replace opt node feature with True
+                            if (o.feature.equivalentTo(feat, fm) || feat.implies(o.feature).isTautology(fm)) {
+                                List(o.copy(feature = trueF))
+                            }
+                            // Feature in opt node is more specific and still satisfiable in the context, don't change opt node
+                            else if (feat.and(o.feature).isSatisfiable(fm)) {
+                                List(o)
+                            }
+                            // Feature in opt node is not satisfiable in the current context, remove opt node
+                            else {
+                                List()
+                            }
+                    }
                 case i: Id if !idsToBeReplaced.containsKey(i) => i
                 case i: Id =>
-                        updateIdMap(feat)
-                        val featureList = idsToBeReplaced.get(i)
-                        val matchingId = featureList.find(x => feat.implies(x).isTautology(fm))
-                        matchingId match {
-                                // TODO: this should not happen?
-                            case None => i
-                            case Some(x: FeatureExpr) =>
-                                if (x.equivalentTo(trueF, fm)) {
-                                    i
-                                } else {
-                                    prependCtxPrefix(i, x)
-                                }
-                        }
+                    updateIdMap(feat)
+                    val featureList = idsToBeReplaced.get(i)
+                    val matchingId = featureList.find(x => feat.implies(x).isTautology(fm))
+                    matchingId match {
+                        // TODO: this should not happen?
+                        case None => i
+                        case Some(x: FeatureExpr) =>
+                            if (x.equivalentTo(trueF, fm)) {
+                                i
+                            } else {
+                                prependCtxPrefix(i, x)
+                            }
+                    }
             })
             r(t).getOrElse(t).asInstanceOf[T]
         }
@@ -1389,12 +1382,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     if (ft.equivalentTo(trueF) || ft.equivalentTo(curCtx)) {
                                         List(Opt(trueF, transformRecursive(cs, newCtx)))
                                     } else {
-                                    List(Opt(trueF,
-                                        IfStatement(
+                                        List(Opt(trueF,
+                                            IfStatement(
                                                 One(toCExpr(fExprDiff(curCtx, newCtx))),
                                                 One(replaceAndTransform(cs, newCtx)),
-                                            List(),
-                                            None)))
+                                                List(),
+                                                None)))
                                     }
                                 case _ => List(transformRecursive(o, newCtx))
                             }
@@ -2416,21 +2409,21 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
         def handleFunctionRec(optFunction: Opt[_], currentContext: FeatureExpr = trueF): List[Opt[_]] = {
             // 1. Step
-                optFunction.entry match {
-                    case fd@FunctionDef(spec, decl, par, stmt) =>
+            optFunction.entry match {
+                case fd@FunctionDef(spec, decl, par, stmt) =>
                     val features = computeFExpsForDuplication(optFunction, currentContext).filterNot(x => x.equals(trueF) || x.and(optFunction.feature).isContradiction(fm))
-                        if (features.isEmpty) {
-                            List(Opt(trueF, FunctionDef(replaceOptAndId(spec, currentContext), replaceOptAndId(decl, currentContext), replaceOptAndId(par, currentContext), transformRecursive(replaceOptAndId(stmt, currentContext), currentContext))))
-                        } else {
+                    if (features.isEmpty) {
+                        List(Opt(trueF, FunctionDef(replaceOptAndId(spec, currentContext), replaceOptAndId(decl, currentContext), replaceOptAndId(par, currentContext), transformRecursive(replaceOptAndId(stmt, currentContext), currentContext))))
+                    } else {
                         if (!isMainFunction(fd.getName) && !features.isEmpty) {
-                                // rename functions
-                                features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(convertStructId(decl, x), x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
-                            } else {
+                            // rename functions
+                            features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(convertStructId(decl, x), x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
+                        } else {
                             // don't rename functions if they are not variable [features.size == 0] or they are the main function
-                                features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(decl, x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
-                            }
+                            features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x), replaceOptAndId(decl, x), replaceOptAndId(par, x), transformRecursive(replaceOptAndId(stmt, x), x))))
                         }
-                    case nfd@NestedFunctionDef(isAuto, spec, decl, par, stmt) =>
+                    }
+                case nfd@NestedFunctionDef(isAuto, spec, decl, par, stmt) =>
                     val features = computeFExpsForDuplication(nfd, currentContext).filterNot(x => x.and(optFunction.feature).isContradiction(fm))
                     if (features.isEmpty) {
                         List(Opt(trueF, NestedFunctionDef(isAuto, replaceOptAndId(spec, currentContext), replaceOptAndId(convertStructId(decl, currentContext), currentContext), replaceOptAndId(par, currentContext), transformRecursive(replaceOptAndId(stmt, currentContext), currentContext))))
