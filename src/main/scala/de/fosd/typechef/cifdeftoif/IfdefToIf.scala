@@ -618,9 +618,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             if (!featureMap.isEmpty) {
                 featureMap.foreach(x => {
                     val tuple = x.split(",")
-                    val feature = new FeatureExprParser().parse(tuple.head)
-                    val number = tuple.tail.head.toInt
-                    presenceConditionNumberMap += (feature -> number)
+                    if (tuple.length != 2) {
+                        val feature = new FeatureExprParser().parse(tuple.head)
+                        val number = tuple.tail.head.toInt
+                        presenceConditionNumberMap += (feature -> number)
+                    }
                 })
             }
         }
