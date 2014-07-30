@@ -622,11 +622,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             if (!featureMap.isEmpty) {
                 featureMap.foreach(x => {
                     val tuple = x.split(",")
-                    if (tuple.length != 2) {
-                        val feature = new FeatureExprParser().parse(tuple.head)
-                        val number = tuple.tail.head.toInt
-                        presenceConditionNumberMap += (feature -> number)
-                    }
+
+                    val feature = new FeatureExprParser().parse(tuple.head)
+                    val number = tuple.tail.head.toInt
+                    presenceConditionNumberMap += (feature -> number)
                 })
             }
         }
@@ -1104,8 +1103,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             println("Typechecking result")
             val typeCheckSuccessful = checkAstSilent(typecheck_ast)
 
-            val featureMap = presenceConditionNumberMap.-(trueF).map(x => x._1.toTextExpr + "," + x._2) mkString "\n"
-            writeToFile(path ++ "featureMap.csv", featureMap)
+            val presenceConditions = presenceConditionNumberMap.-(trueF)
+            if (!presenceConditions.isEmpty)
+                writeToFile(path ++ "featureMap.csv", presenceConditions.map(x => x._1.toTextExpr + "," + x._2) mkString "\n")
 
             if (typeCheckSuccessful) {
                 if (writeStatistics) {
