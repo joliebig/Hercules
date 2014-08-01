@@ -948,6 +948,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             val r = manytd(rule {
                 case l: List[Opt[_]] =>
                     l.flatMap {
+                        case Opt(ft, LabelStatement(id, attrib)) =>
+                            // Labels have to be renamed to avoid having the same label name occur multiple times after a duplication
+                            addIdUsages(id, feat)
+                            List(Opt(ft, LabelStatement(prependCtxPrefix(id, feat), attrib)))
                         case o: Opt[_] =>
                             // Feature in opt node is equal or less specific than the context, replace opt node feature with True
                             if (o.feature.equivalentTo(feat, fm) || feat.implies(o.feature).isTautology(fm)) {
