@@ -4,7 +4,7 @@ version := "1.0"
 
 organization := "de.fosd.typechef"
 
-scalaVersion := "2.10.2"
+scalaVersion := "2.10.4"
 
 libraryDependencies += "de.fosd.typechef" % "frontend_2.10" % "0.3.6"
 
@@ -33,6 +33,8 @@ scalacOptions ++= Seq("-deprecation",
     "-language:reflectiveCalls",
     "-language:higherkinds",
     "-language:implicitConversions")
+
+resolvers += "SonaType" at "http://oss.sonatype.org/content/repositories/snapshots/"
 
 mainClass in Runtime := Some("de.fosd.typechef.cifdeftoif.IfdeftoifFrontend")
 
