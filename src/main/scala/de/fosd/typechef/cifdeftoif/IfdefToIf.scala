@@ -806,6 +806,14 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         case k =>
                             k
                     }), init).asInstanceOf[T]
+                case l: List[Opt[Specifier]] =>
+                    l.map(x => x match {
+                        case Opt(optFt, StructOrUnionSpecifier(isUnion, Some(id: Id), enumerators, attributesbefore, attributesafter)) =>
+                            addIdUsages(id, ft)
+                            Opt(optFt, StructOrUnionSpecifier(isUnion, Some(prependCtxPrefix(id, ft)), enumerators, attributesbefore, attributesafter))
+                        case k =>
+                            k
+                    }).asInstanceOf[T]
                 case k =>
                     k
             }
@@ -2287,7 +2295,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
                 val declarationFeature = optDeclaration.feature
-                val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
+                var newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
                 else {
                     val relevantFeature = x.feature.and(declarationFeature)
                     x match {
@@ -2347,18 +2355,26 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                      */
                     val declarationWithoutInit = Declaration(newDeclSpecs, List())
                     var declarationWithoutInitResult: List[Opt[Declaration]] = List()
+                    var declarationInitResult = List()
+                    val newInitialization = Declaration(newDeclSpecs.map(x => x.entry match {
+                        case StructOrUnionSpecifier(isUnion, Some(id@Id(name)), enumerators, attributesbefore, attributesafter) =>
+                            val newId = Id(name)
+                            //specifierFeatures.foreach(x => addIdUsages(newId, x))
+                            if (defuse.containsKey(id)) {
+                                defuse.iIdHashMap.put(id, newId :: defuse.iIdHashMap.get(id))
+                            }
+                            Opt(x.feature, StructOrUnionSpecifier(isUnion, Some(newId), None, attributesbefore, attributesafter))
+                        case k =>
+                            Opt(x.feature, k)
+                    }
+                    ), init)
                     if (!specifierFeatures.isEmpty) {
                         declarationWithoutInitResult = specifierFeatures.flatMap(x => handleDeclarations(Opt(trueF, replaceOptAndId(convertStructSpecifier(declarationWithoutInit, x), x)), curCtx, isTopLevel))
                     } else {
                         declarationWithoutInitResult = handleDeclarations(Opt(trueF, declarationWithoutInit), curCtx, isTopLevel)
                     }
-                    val newInitialization = Declaration(newDeclSpecs.map(x => x.entry match {
-                        case StructOrUnionSpecifier(isUnion, id, enumerators, attributesbefore, attributesafter) =>
-                            Opt(x.feature, StructOrUnionSpecifier(isUnion, id, None, attributesbefore, attributesafter))
-                        case k =>
-                            Opt(x.feature, k)
-                    }
-                    ), init)
+                    //val declarationInitResult = features.map(x => )
+                    //init.foreach(x => )
                     return declarationWithoutInitResult ++ handleDeclarations(Opt(trueF, newInitialization), curCtx, isTopLevel)
                 }
                 if ((features.isEmpty) && isTopLevel && !curCtx.and(optDeclaration.feature).equivalentTo(trueF, fm)) {
