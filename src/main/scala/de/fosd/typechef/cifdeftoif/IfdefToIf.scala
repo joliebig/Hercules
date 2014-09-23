@@ -2295,7 +2295,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
                 val declarationFeature = optDeclaration.feature
-                var newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
+                val newDeclSpecs = declSpecs.map(x => if (optDeclaration.feature.equivalentTo(curCtx) && curCtx.implies(x.feature).isTautology(fm)) x
                 else {
                     val relevantFeature = x.feature.and(declarationFeature)
                     x match {
