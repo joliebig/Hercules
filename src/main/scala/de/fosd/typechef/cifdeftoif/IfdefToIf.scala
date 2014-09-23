@@ -1292,6 +1292,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             List(transformPossibleIdentifiers(o))
                         } else {
                             entry match {
+                                case InitDeclaratorI(decl, attributes, Some(Initializer(initElemLabel, lc: LcurlyInitializer))) =>
+                                    // Never transform initializations using curly braces with conditional expressions
+                                    List(transformRecursive(o, newCtx))
                                 case InitDeclaratorI(decl, attributes, Some(init@Initializer(initElemLabel, expr))) =>
                                     if (!isTopLevel) {
 
@@ -1876,6 +1879,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def getNextIdFeatures(a: Any, currentContext: FeatureExpr = trueF, isTopLevel: Boolean = false): List[FeatureExpr] = {
         def getVariableIds(a: Any, currentContext: FeatureExpr = trueF): List[Id] = {
             a match {
+                case d@Initializer(initElemLabel, lc: LcurlyInitializer) =>
+                    initElemLabel.productIterator.toList.flatMap(getVariableIds(_, currentContext))
+                    lc.productIterator.toList.flatMap(getVariableIds(_, currentContext))
                 case d: Initializer =>
                     //println("Stopping at: " + d)
                     if (isTopLevel) {
