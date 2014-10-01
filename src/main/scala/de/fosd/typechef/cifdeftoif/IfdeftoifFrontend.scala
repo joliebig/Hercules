@@ -148,10 +148,12 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
 
                 // I need this code for building serialized AST-parts that I can use in PreparedIfdeftoifParts to replace problematic AST elements.
-                // step 1. copy problematic source code in file, load it with TC, trim and copy AST code (line 1) in val s (trimming means to remove the TranslationUnit etc)
+                // step 1. copy problematic source code in file, load it with TC, trim and copy AST code (line 1) in val s
+                // (trimming (search object) means to remove the TranslationUnit and the next List Object )
                 // step 2. fix problematic source code in file, load it with TC, trim and copy AST code (line 1) in val r
-                // step 3. copy 4 following lines to File "ifdeftoif_replacements_parts/PreparedReplacementParts.txt"
-                /*
+                // (trimming (replace object) means to remove the TranslationUnit and optionally the List if it has only one item )
+                // step 3. run TC again, copy 4 following lines to File "ifdeftoif_replacements_parts/PreparedReplacementParts.txt"
+				/*
                 println("// AST:  " + ast)
                 println()
                 val s = Opt(FeatureExprFactory.True,Declaration(List(Opt(FeatureExprFactory.True,EnumSpecifier(None,Some(List(Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_COLLAPSE"),Some(Constant("0x00010000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_TRIM"),Some(Constant("0x00020000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_GREEDY"),Some(Constant("0x00040000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_MIN_DIE"),Some(Constant("0x00100000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_KEEP_COPY"),Some(NAryExpr(Constant("0x00200000"),List(Opt(FeatureExprFactory.createDefinedExternal("CONFIG_FEATURE_CROND_D"),NArySubExpr("*",Constant("1"))), Opt(FeatureExprFactory.createDefinedExternal("CONFIG_FEATURE_CROND_D").not(),NArySubExpr("*",Constant("0")))))))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_EOL_COMMENTS"),Some(Constant("0x00400000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_NORMAL"),Some(NAryExpr(Id("PARSE_COLLAPSE"),List(Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_TRIM"))), Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_GREEDY"))), Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_EOL_COMMENTS"))))))))))))),List()))
@@ -160,7 +162,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 println("searchObj: " + PreparedIfdeftoifParts.serializeObject(s))
                 println("// replace with: " + r)
                 println("replaceObj: " + PreparedIfdeftoifParts.serializeObject(r))
-                */
+				*/
 
                 // some dataflow analyses require typing information
                 val ts = new CTypeSystemFrontend(ast, fullFM, opt) with CTypeCache with CDeclUse
