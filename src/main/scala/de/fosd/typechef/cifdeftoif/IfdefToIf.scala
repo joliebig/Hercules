@@ -430,13 +430,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
   }
 
-  /**
-   * Returns a set of all configuration options in a.
-   */
-  private def getSingleFeaturesFromList(lst: List[FeatureExpr]): Set[SingleFeatureExpr] = {
-    var featureSet: Set[FeatureExpr] = lst.toSet
-    featureSet.flatMap(x => x.collectDistinctFeatureObjects)
-  }
+
     /**
      * Creates an #include directive for a header file of the "own" program, i.e., #include "path".
      * Does not create an include for system header files!
@@ -2337,8 +2331,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 val isStruct = tmpDecl.declSpecs.exists(x => x.entry.isInstanceOf[StructOrUnionSpecifier] && x.entry.asInstanceOf[StructOrUnionSpecifier].enumerators.isDefined)
                 val isStructWithInit = isStruct && tmpDecl.init.exists(x => x.entry.isInstanceOf[InitDeclaratorI] && x.entry.asInstanceOf[InitDeclaratorI].i.isDefined)
                 val specifierFeatures = computeFExpsForDuplication(tmpDecl.declSpecs, declarationFeature.and(curCtx), isTopLevel)
-                val specifierSingleFeatures = getSingleFeaturesFromList(specifierFeatures)
-                val initdeclSingleFeatures = getSingleFeaturesFromList(computeFExpsForDuplication(tmpDecl.init, declarationFeature.and(curCtx), isTopLevel))
+                val specifierSingleFeatures = IfdeftoifUtils.getSingleFeaturesFromList(specifierFeatures)
+                val initdeclSingleFeatures = IfdeftoifUtils.getSingleFeaturesFromList(computeFExpsForDuplication(tmpDecl.init, declarationFeature.and(curCtx), isTopLevel))
                 if (isStructWithInit && !initdeclSingleFeatures.diff(specifierSingleFeatures).isEmpty) {
                     /* Split variable struct initializers from the declaration, e.g.
                      * struct point {int x; int y;} apoint[] =

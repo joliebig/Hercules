@@ -23,4 +23,11 @@ object IfdeftoifUtils {
         r(a)
         featureSet.flatMap(x => x.collectDistinctFeatureObjects)
     }
+  /**
+   * Returns a set of all configuration options in a.
+   */
+  def getSingleFeaturesFromList(lst: List[FeatureExpr]): Set[SingleFeatureExpr] = {
+    var featureSet: Set[FeatureExpr] = lst.toSet
+    featureSet.flatMap(x => x.collectDistinctFeatureObjects)
+  }
 }
