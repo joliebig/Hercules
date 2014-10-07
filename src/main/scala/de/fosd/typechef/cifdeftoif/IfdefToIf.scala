@@ -991,7 +991,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     l.flatMap {
                         case o@Opt(ft, LabelStatement(id, attrib)) =>
                             val composedFeature = ft.and(feat)
-                            if (ft.equals(trueF) || ft.equivalentTo(composedFeature)) {
+                            if (ft.equivalentTo(feat)) {
                                 List(o.copy(feature = trueF))
                             } else {
                                 // Labels have to be renamed to avoid having the same label name occur multiple times after a duplication
@@ -1835,11 +1835,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case d@Opt(ft, entry: Statement) =>
                     //println("Stopping at: " + d)
                     List()
-                case d@Opt(ft, entry: Initializer) =>
+                case d@Opt(ft, entry@Initializer(initElemLabel, expr)) =>
                     //println("Stopping at: " + d)
                     val realFeature = getFeatureForContext(ft, currentContext)
                     if (ft.equivalentTo(trueF) || ft.equivalentTo(FeatureExprFactory.False) || realFeature.equivalentTo(currentContext)) {
-                        List()
+                        getOptFeature(entry, currentContext)
                     } else {
                         List(realFeature) ++ entry.productIterator.toList.flatMap(getOptFeature(_, realFeature))
                     }
