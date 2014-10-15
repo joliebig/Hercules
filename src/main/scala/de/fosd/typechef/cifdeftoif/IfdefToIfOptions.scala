@@ -12,6 +12,7 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
     private final val F_IFDEFTOIFNOCHECK: Char = Options.genOptionId
     private final val F_FEATURECONFIG: Char = Options.genOptionId
     private final val F_DECLUSE: Char = Options.genOptionId
+    private final val F_MD: Char = Options.genOptionId // dependency output option of gcc
 
     var ifdeftoif: Boolean = false
     var ifdeftoifstatistics: Boolean = false
@@ -20,6 +21,11 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
     var featureConfig: Boolean = false
 
     private var featureConfigFile: String = ""
+    private var md: String = ""
+
+    def getFeatureConfigFilename: String = featureConfigFile
+
+    def getMDoption: String = md
 
     protected override def getOptionGroups() = {
         val groups = new util.ArrayList[OptionGroup](super.getOptionGroups())
@@ -35,7 +41,9 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
                 new Options.Option("featureConfig", LongOpt.REQUIRED_ARGUMENT, F_FEATURECONFIG, null,
                     "Make #ifdef to if transformation."),
                 new Options.Option("decluse", LongOpt.NO_ARGUMENT, F_DECLUSE, null,
-                    "Test the declaration use map.")
+                    "Test the declaration use map."),
+                new Options.Option("MD", LongOpt.REQUIRED_ARGUMENT, F_MD, "file",
+                    "Export dependency list.")
             ))
 
         groups
@@ -64,13 +72,13 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
             parse = true
             typecheck = true
             decluse = true
+        } else if (c == F_MD) {
+            md = g.getOptarg
         } else {
             return super.interpretOption(c, g)
         }
 
         true
     }
-
-    def getFeatureConfigFilename: String = featureConfigFile
 
 }
