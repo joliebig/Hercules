@@ -22,8 +22,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     val typeCheckResult = true
 
     val filesToAnalysePerRun = 15
-    var filesTransformed = 0
-
     val i = new IfdefToIf with IfdefToIfStatistics
     val path = new File("..").getCanonicalPath() ++ "/ifdeftoif/"
     val singleFilePath = new File("..").getCanonicalPath() ++ "/single_files/"
@@ -32,8 +30,17 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     val linuxPath = "../TypeChef-LinuxAnalysis"
     val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/src/test/resources/ifdeftoif_testfiles/"
     val True = FeatureExprFactory.True
+    var filesTransformed = 0
     /* val tb = java.lang.management.ManagementFactory.getThreadMXBean
   val time = tb.getCurrentThreadCpuTime // Type long; beware in nanoseconds */
+
+    def appendToFile(fileName: String, textData: String) = {
+        using(new FileWriter(fileName, true)) {
+            fileWriter => using(new PrintWriter(fileWriter)) {
+                printWriter => printWriter.print(textData)
+            }
+        }
+    }
 
     /**
      * Used for reading/writing to database, files, etc.
@@ -46,106 +53,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         } finally {
             param.close()
         }
-
-    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
-        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
-    }
-
-    def writeToFile(fileName: String, data: String) =
-        using(new FileWriter(fileName)) {
-            fileWriter => fileWriter.write(data)
-        }
-
-    def appendToFile(fileName: String, textData: String) = {
-        using(new FileWriter(fileName, true)) {
-            fileWriter => using(new PrintWriter(fileWriter)) {
-                printWriter => printWriter.print(textData)
-            }
-        }
-    }
-
-    def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
-        new File(singleFilePath).mkdirs()
-        val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
-        val analyseString = "++Analyse: " + file.getName + "++"
-        print(analyseString)
-        for (i <- (analyseString.size / 4) until 15) {
-            print("\t")
-        }
-        val startParsingAndTypeChecking = System.currentTimeMillis()
-        val ast = i.getAstFromFile(file)
-        val source_ast = prepareAST(ast)
-        val ts = getTypeSystem(source_ast)
-        //val env = createASTEnv(source_ast)
-        ts.typecheckTranslationUnit(source_ast)
-        val defUseMap = ts.getDeclUseMap
-        val useDefMap = ts.getUseDeclMap
-        val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
-        print("--Parsed--")
-
-      if (!i.checkAstSilent(source_ast)) {
-            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
-            return (0, TranslationUnit(List()))
-        }
-
-        val startTransformation = System.currentTimeMillis()
-        val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
-        val timeToTransform = System.currentTimeMillis() - startTransformation
-        print("\t--Transformed--")
-        //println("\n" + PrettyPrinter.print(new_ast._1))
-
-        val startPrettyPrinting = System.currentTimeMillis()
-        PrettyPrinter.printD(new_ast._1, singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
-        val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
-        print("\t--Printed--\n")
-        if (writeAst) {
-            writeToTextFile(fileNameWithoutExtension ++ "_ast.txt", source_ast.toString())
-        }
-
-        if (makeAnalysis) {
-            //if (!(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).exists) {
-            PrettyPrinter.printD(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
-            //}
-            /*val linesOfCodeBefore = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).getLines().size
-            val linesOfCodeAfter = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".ifdeftoif")).getLines().size
-            val codeDifference = computeDifference(linesOfCodeBefore, linesOfCodeAfter)
-            val csvBeginning = file.getName() + "," + linesOfCodeBefore + "," + linesOfCodeAfter + "," + codeDifference + ","*/
-
-
-            //val csvEntry = i.createCsvEntry(source_ast, new_ast._1, fileNameWithoutExtension, timeToParseAndTypeCheck, timeToTransform)
-            writeToTextFile(singleFilePath ++ fileNameWithoutExtension ++ ".csv", i.getCSVHeader + new_ast._2)
-            val resultFile = new File(singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
-            val result_ast = i.getAstFromFile(resultFile)
-
-            // new_ast._1 is the generated ast
-            // result_ast is the ast parsed from the generated file
-            // 1. is the generated ast ok?
-            val wellTypedAST = i.checkAst(new_ast._1)
-            if (wellTypedAST) {
-                println("\t--TypeCheck: " + true + "--\n")
-            } else {
-                println("\t--TypeCheck: " + false + "--\n")
-            }
-            assert(wellTypedAST, "generated AST is not well typed")
-
-            // 2. is the generated file well typed?
-            println(PrettyPrinter.print(result_ast))
-            val wellTypedFile = i.checkAst(result_ast)
-            assert(wellTypedFile, "generated file is not well typed or could not be parsed")
-            // 3. does it still contain #if statements?
-            val containsIfdef = i.hasVariableNodes(result_ast)
-            val fileContent = Source.fromFile(resultFile).getLines().mkString("\n")
-            assert(!containsIfdef,
-                "generated file contains #if statements")
-            // return number of nodes in generated AST
-
-            // everything should be ok
-            //println(fileContent)
-          (new_ast._2.split(",")(3).toInt, new_ast._1)
-        } else {
-          (0, TranslationUnit(List()))
-        }
-    }
 
     @Test
     def liftingExpr() {
@@ -213,41 +120,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val env = CASTEnv.createASTEnv(c)
         val r = i.liftVariability(s1, env)
         println(r)
-    }
-
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
-    }
-
-    private def compareTypeChecking(file: File): Tuple2[Long, Long] = {
-        val source_ast = i.getAstFromFile(file)
-        val defuses = getDefUse(source_ast)
-        val result_ast = i.transformAst(prepareAST(source_ast), defuses._1, defuses._2, 0)._1
-        val ts_source = getTypeSystem(source_ast)
-        val ts_result = getTypeSystem(result_ast)
-
-        val typeCheckSourceStart = System.currentTimeMillis()
-        ts_source.checkASTSilent
-        val typeCheckSourceDuration = System.currentTimeMillis() - typeCheckSourceStart
-        print("++" + file.getName() + "++\n" + "TypeCheck Source: \t\t" + typeCheckSourceDuration + "\t\t\t\t")
-
-        val typeCheckResultStart = System.currentTimeMillis()
-        ts_result.checkASTSilent
-        val typeCheckResultDuration = System.currentTimeMillis() - typeCheckResultStart
-        print("TypeCheck Result: \t\t" + typeCheckResultDuration + "\n\n")
-
-        (typeCheckSourceDuration, typeCheckResultDuration)
-    }
-
-    private def getDefUse(ast: TranslationUnit): (IdentityIdHashMap, IdentityIdHashMap) = {
-        typecheckTranslationUnit(ast)
-        (getDeclUseMap, getUseDeclMap)
     }
 
     @Ignore def test_function() {
@@ -413,7 +285,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         println(testAst(source_ast))
     }
 
-
     @Ignore def test_switch2 {
         val source_ast = getAST( """
       void foo_02(int a) {
@@ -447,7 +318,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
 
         println(testAst(source_ast))
     }
-
 
     @Ignore def test_switch3 {
         val source_ast = getAST( """
@@ -489,7 +359,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
                                  """)
         println(testAst(source_ast))
     }
-
 
     @Ignore def test_switch4 {
         val source_ast = getAST( """
@@ -975,6 +844,16 @@ static const char * const azCompileOpt[] = {
         println(testAst(source_ast))
     }
 
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
+    }
+
     @Ignore def normal_struct {
         val source_ast = getAST( """
       static const struct file_operations acpi_ac_fops = {
@@ -1250,104 +1129,215 @@ static const char * const azCompileOpt[] = {
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_2() {
         val file = new File(ifdeftoifTestPath + "2.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_3() {
         val file = new File(ifdeftoifTestPath + "3.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_4() {
         val file = new File(ifdeftoifTestPath + "4.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_5() {
         val file = new File(ifdeftoifTestPath + "5.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_6() {
         val file = new File(ifdeftoifTestPath + "6.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_7() {
         val file = new File(ifdeftoifTestPath + "7.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_8() {
         val file = new File(ifdeftoifTestPath + "8.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_9() {
         val file = new File(ifdeftoifTestPath + "9.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_10() {
         val file = new File(ifdeftoifTestPath + "10.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_11() {
         val file = new File(ifdeftoifTestPath + "11.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_12() {
         val file = new File(ifdeftoifTestPath + "12.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_13() {
         val file = new File(ifdeftoifTestPath + "13.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_14() {
         val file = new File(ifdeftoifTestPath + "14.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_15() {
         val file = new File(ifdeftoifTestPath + "15.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_16() {
         val file = new File(ifdeftoifTestPath + "16.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_17() {
         val file = new File(ifdeftoifTestPath + "17.c")
         println(i.getAstFromFile(file))
         testFile(file)
     }
+
     @Test def test_alex_18() {
-      val file = new File(ifdeftoifTestPath + "18.c")
-      println(i.getAstFromFile(file))
-      val ast : TranslationUnit = testFile(file)._2
-      val search = CompoundStatement(List(Opt(FeatureExprFactory.True,LabelStatement(Id("skip"),None))))
-      // the ast must not contain the search ast
-      // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
-      assert (! ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
+        val file = new File(ifdeftoifTestPath + "18.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // the ast must not contain the search ast
+        // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
+        assert(!ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
     }
+
+    def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
+        new File(singleFilePath).mkdirs()
+        val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
+        val analyseString = "++Analyse: " + file.getName + "++"
+        print(analyseString)
+        for (i <- (analyseString.size / 4) until 15) {
+            print("\t")
+        }
+        val startParsingAndTypeChecking = System.currentTimeMillis()
+        val ast = i.prepareASTforIfdef(i.getAstFromFile(file))
+        val source_ast = prepareAST(ast)
+        val ts = getTypeSystem(source_ast)
+        //val env = createASTEnv(source_ast)
+        ts.typecheckTranslationUnit(source_ast)
+        val defUseMap = ts.getDeclUseMap
+        val useDefMap = ts.getUseDeclMap
+        val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
+        print("--Parsed--")
+
+        if (!i.checkAstSilent(source_ast)) {
+            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
+            return (0, TranslationUnit(List()))
+        }
+
+        val startTransformation = System.currentTimeMillis()
+        val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
+        val timeToTransform = System.currentTimeMillis() - startTransformation
+        print("\t--Transformed--")
+        //println("\n" + PrettyPrinter.print(new_ast._1))
+
+        val startPrettyPrinting = System.currentTimeMillis()
+        PrettyPrinter.printD(new_ast._1, singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+        val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
+        print("\t--Printed--\n")
+        if (writeAst) {
+            writeToTextFile(fileNameWithoutExtension ++ "_ast.txt", source_ast.toString())
+        }
+
+        if (makeAnalysis) {
+            //if (!(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).exists) {
+            PrettyPrinter.printD(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
+            //}
+            /*val linesOfCodeBefore = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).getLines().size
+            val linesOfCodeAfter = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".ifdeftoif")).getLines().size
+            val codeDifference = computeDifference(linesOfCodeBefore, linesOfCodeAfter)
+            val csvBeginning = file.getName() + "," + linesOfCodeBefore + "," + linesOfCodeAfter + "," + codeDifference + ","*/
+
+
+            //val csvEntry = i.createCsvEntry(source_ast, new_ast._1, fileNameWithoutExtension, timeToParseAndTypeCheck, timeToTransform)
+            writeToTextFile(singleFilePath ++ fileNameWithoutExtension ++ ".csv", i.getCSVHeader + new_ast._2)
+            val resultFile = new File(singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+            val result_ast = i.getAstFromFile(resultFile)
+
+            // new_ast._1 is the generated ast
+            // result_ast is the ast parsed from the generated file
+            // 1. is the generated ast ok?
+            val wellTypedAST = i.checkAst(new_ast._1)
+            if (wellTypedAST) {
+                println("\t--TypeCheck: " + true + "--\n")
+            } else {
+                println("\t--TypeCheck: " + false + "--\n")
+            }
+            assert(wellTypedAST, "generated AST is not well typed")
+
+            // 2. is the generated file well typed?
+            println(PrettyPrinter.print(result_ast))
+            val wellTypedFile = i.checkAst(result_ast)
+            assert(wellTypedFile, "generated file is not well typed or could not be parsed")
+            // 3. does it still contain #if statements?
+            val containsIfdef = i.hasVariableNodes(result_ast)
+            val fileContent = Source.fromFile(resultFile).getLines().mkString("\n")
+            assert(!containsIfdef,
+                "generated file contains #if statements")
+            // return number of nodes in generated AST
+
+            // everything should be ok
+            //println(fileContent)
+            (new_ast._2.split(",")(3).toInt, new_ast._1)
+        } else {
+            (0, TranslationUnit(List()))
+        }
+    }
+
+    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
+        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
+    }
+
+    private def writeToTextFile(name: String, content: String) {
+        val fw = new FileWriter(name)
+        fw.write(content)
+        fw.close()
+    }
+
     @Test def test_alex_19() {
-      val file = new File(ifdeftoifTestPath + "19.c")
-      println(i.getAstFromFile(file))
-      val ast : TranslationUnit = testFile(file)._2
-      val search = CompoundStatement(List(Opt(FeatureExprFactory.True,LabelStatement(Id("skip"),None))))
-      // bug was/is that a referenced label (next_link) was deleted from the ast
-      val labelRef = GotoStatement(Id("next_link"))
-      val labelDef = LabelStatement(Id("next_link"),None)
-      assert (!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString),"label \"next_link\" removed but still referenced")
+        val file = new File(ifdeftoifTestPath + "19.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // bug was/is that a referenced label (next_link) was deleted from the ast
+        val labelRef = GotoStatement(Id("next_link"))
+        val labelDef = LabelStatement(Id("next_link"), None)
+        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
     }
 
     @Test def test_opt_flags() {
@@ -1355,7 +1345,6 @@ static const char * const azCompileOpt[] = {
         println(i.getAstFromFile(file))
         testFile(file)
     }
-
 
     @Test def test_typedef_function_usage() {
         val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
@@ -1448,6 +1437,48 @@ static const char * const azCompileOpt[] = {
         val filename = "touch"
         transformSingleFile(filename, busyBoxPath)
     }
+
+    private def transformSingleFile(filename: String, directory: String) {
+        var foundFile = false
+        val dirToAnalyse = new File(directory)
+
+        def transformPiFiles(dirToAnalyse: File) {
+            if (!foundFile) {
+                // retrieve all pi from dir first
+                if (dirToAnalyse.isDirectory) {
+                    val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
+                        def accept(dir: File, file: String): Boolean =
+                            file.equals(filename + ".pi")
+                    })
+                    val dirs = dirToAnalyse.listFiles(new FilenameFilter {
+                        def accept(dir: File, file: String) = dir.isDirectory
+                    })
+                    if (!piFiles.isEmpty) {
+                        foundFile = true
+                        testFile(piFiles.head)
+                    } else {
+                        for (dir <- dirs) {
+                            transformPiFiles(dir)
+                        }
+                    }
+
+                }
+            }
+        }
+        if (dirToAnalyse.exists()) {
+            new File(path).mkdirs()
+            if (!checkForExistingFiles || !(new File(path ++ "statistics.csv").exists)) {
+                writeToFile(path ++ "statistics.csv", i.getCSVHeader)
+            }
+
+            transformPiFiles(dirToAnalyse)
+        }
+    }
+
+    def writeToFile(fileName: String, data: String) =
+        using(new FileWriter(fileName)) {
+            fileWriter => fileWriter.write(data)
+        }
 
     @Ignore def busybox_file_tests() {
         val fs = File.separator
@@ -1771,12 +1802,6 @@ static const char * const azCompileOpt[] = {
         println(source_ast2)
     }
 
-    private def writeToTextFile(name: String, content: String) {
-        val fw = new FileWriter(name)
-        fw.write(content)
-        fw.close()
-    }
-
     @Ignore def function_test() {
         val source_ast = getAST( """
     void open_transformer(int fd,
@@ -1789,160 +1814,6 @@ static const char * const azCompileOpt[] = {
      int (*transformer)(int src_fd, int dst_fd)) ;
                                  """)
         println(testAst(source_ast))
-    }
-
-    private def analyseDir(dirToAnalyse: File): List[Tuple2[TranslationUnit, String]] = {
-        // retrieve all pi from dir first
-        if (dirToAnalyse.isDirectory) {
-            val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
-                def accept(dir: File, file: String): Boolean = file.endsWith(".pi")
-            })
-            val dirs = dirToAnalyse.listFiles(new FilenameFilter {
-                def accept(dir: File, file: String) = dir.isDirectory
-            })
-            piFiles.toList.map(x => {
-                val fis = new FileInputStream(x)
-                val ast = parseFile(fis, x.getName, x.getParent)
-                fis.close()
-                (ast, x.getName)
-            }) ++ dirs.flatMap(x => analyseDir(x))
-        } else {
-            List()
-        }
-    }
-
-    private def countFiles(dirToAnalyse: File, fileExtension: String = ".pi"): Int = {
-        def countHelp(file: File): Int = {
-            if (file.isDirectory) {
-                val piFiles = file.listFiles(new FilenameFilter {
-                    def accept(dir: File, fileName: String): Boolean = fileName.endsWith(fileExtension)
-                })
-                val dirs = file.listFiles(new FilenameFilter {
-                    def accept(dir: File, fileName: String) = dir.isDirectory
-                })
-                var numberOfFiles = piFiles.size
-                for (dir <- dirs) {
-                    numberOfFiles = numberOfFiles + countHelp(dir)
-                }
-                numberOfFiles
-            } else {
-                0
-            }
-        }
-        countHelp(dirToAnalyse)
-    }
-
-    private def transformDir(dirToAnalyse: File) {
-        def transformPiFiles(dirToAnalyse: File) {
-            if (filesTransformed < filesToAnalysePerRun) {
-                // retrieve all pi from dir first
-                if (dirToAnalyse.isDirectory) {
-                    val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
-                        def accept(dir: File, file: String): Boolean = file.endsWith(".pi")
-                    })
-                    val dirs = dirToAnalyse.listFiles(new FilenameFilter {
-                        def accept(dir: File, file: String) = dir.isDirectory
-                    })
-                    for (piFile <- piFiles) {
-                        runIfdefToIfOnPi(piFile)
-                    }
-                    for (dir <- dirs) {
-                        transformPiFiles(dir)
-                    }
-                }
-            }
-        }
-        new File(path).mkdirs()
-        if (!checkForExistingFiles || !(new File(path ++ "statistics.csv").exists)) {
-            writeToFile(path ++ "statistics.csv", i.getCSVHeader)
-        }
-        transformPiFiles(dirToAnalyse)
-    }
-
-    private def transformSingleFile(filename: String, directory: String) {
-        var foundFile = false
-        val dirToAnalyse = new File(directory)
-
-        def transformPiFiles(dirToAnalyse: File) {
-            if (!foundFile) {
-                // retrieve all pi from dir first
-                if (dirToAnalyse.isDirectory) {
-                    val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
-                        def accept(dir: File, file: String): Boolean =
-                            file.equals(filename + ".pi")
-                    })
-                    val dirs = dirToAnalyse.listFiles(new FilenameFilter {
-                        def accept(dir: File, file: String) = dir.isDirectory
-                    })
-                    if (!piFiles.isEmpty) {
-                        foundFile = true
-                        testFile(piFiles.head)
-                    } else {
-                        for (dir <- dirs) {
-                            transformPiFiles(dir)
-                        }
-                    }
-
-                }
-            }
-        }
-        if (dirToAnalyse.exists()) {
-            new File(path).mkdirs()
-            if (!checkForExistingFiles || !(new File(path ++ "statistics.csv").exists)) {
-                writeToFile(path ++ "statistics.csv", i.getCSVHeader)
-            }
-
-            transformPiFiles(dirToAnalyse)
-        }
-    }
-
-    private def runIfdefToIfOnPi(file: File, featureModel: FeatureModel = FeatureExprFactory.empty) {
-        if (filesTransformed < filesToAnalysePerRun) {
-            val filePathWithoutExtension = i.getFileNameWithoutExtension(file.getPath())
-            val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
-            val transformedFileExists = (writeFilesIntoIfdeftoifFolder && new File(path ++ fileNameWithoutExtension ++ "_ifdeftoif.c").exists) || (!writeFilesIntoIfdeftoifFolder && new File(filePathWithoutExtension ++ "_ifdeftoif.c").exists)
-            var fileName = file.getName()
-
-            if (!checkForExistingFiles || !transformedFileExists) {
-                /*for (i <- (analyseString.size / 4) until 15) {
-                  print("\t")
-                }*/
-
-                filesTransformed = filesTransformed + 1
-
-                val startParsingAndTypeChecking = System.currentTimeMillis()
-                val source_ast = i.getAstFromFile(file)
-                typecheckTranslationUnit(source_ast)
-                val defUseMap = getDeclUseMap
-                val useDefMap = getUseDeclMap
-                val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
-                //print("--Parsed--")
-
-                val tuple = i.ifdeftoif(prepareAST(source_ast), defUseMap, useDefMap, featureModel, fileNameWithoutExtension, timeToParseAndTypeCheck, makeAnalysis, path ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
-                tuple._1 match {
-                    case None =>
-                        println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result !!")
-                    case Some(x) =>
-                        //PrettyPrinter.printD(x, path ++ fileNameWithoutExtension ++ ".ifdeftoif")
-                        println("++Transformed: " ++ fileName ++ "++\t\t --in " + tuple._2 ++ " ms--")
-                }
-
-                val startTransformation = System.currentTimeMillis()
-                val new_ast = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)
-                val timeToTransform = System.currentTimeMillis() - startTransformation
-                //print("\t--Transformed--")
-
-                val startPrettyPrinting = System.currentTimeMillis()
-                if (writeFilesIntoIfdeftoifFolder) {
-                    PrettyPrinter.printD(new_ast._1, path ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
-                } else {
-                    //writeToTextFile(filePathWithoutExtension ++ ".ifdeftoif", transformedCode)
-                    PrettyPrinter.printD(new_ast._1, filePathWithoutExtension ++ "_ifdeftoif.c")
-                }
-                val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
-                //print("\t--Printed--\n")
-            }
-        }
     }
 
     @Test def funct_test() {
@@ -2041,16 +1912,19 @@ static const char * const azCompileOpt[] = {
         println(ast)
         testFile(new File(ifdeftoifTestPath + "conditionalDeclarationAssignments.c"))
     }
+
     @Test def for_loop() {
         val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "for_loop.c"))
         println(ast)
         testFile(new File(ifdeftoifTestPath + "for_loop.c"))
     }
+
     @Test def conditional_expression() {
         val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "conditional_expression.c"))
         println(ast)
         testFile(new File(ifdeftoifTestPath + "conditional_expression.c"))
     }
+
     @Test def conditional_expression2() {
         val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "conditional_expression2.c"))
         println(ast)
@@ -2069,6 +1943,82 @@ static const char * const azCompileOpt[] = {
         val busybox = new File(busyBoxPath + "")
         if (busybox.exists()) {
             transformDir(busybox)
+        }
+    }
+
+    private def transformDir(dirToAnalyse: File) {
+        def transformPiFiles(dirToAnalyse: File) {
+            if (filesTransformed < filesToAnalysePerRun) {
+                // retrieve all pi from dir first
+                if (dirToAnalyse.isDirectory) {
+                    val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
+                        def accept(dir: File, file: String): Boolean = file.endsWith(".pi")
+                    })
+                    val dirs = dirToAnalyse.listFiles(new FilenameFilter {
+                        def accept(dir: File, file: String) = dir.isDirectory
+                    })
+                    for (piFile <- piFiles) {
+                        runIfdefToIfOnPi(piFile)
+                    }
+                    for (dir <- dirs) {
+                        transformPiFiles(dir)
+                    }
+                }
+            }
+        }
+        new File(path).mkdirs()
+        if (!checkForExistingFiles || !(new File(path ++ "statistics.csv").exists)) {
+            writeToFile(path ++ "statistics.csv", i.getCSVHeader)
+        }
+        transformPiFiles(dirToAnalyse)
+    }
+
+    private def runIfdefToIfOnPi(file: File, featureModel: FeatureModel = FeatureExprFactory.empty) {
+        if (filesTransformed < filesToAnalysePerRun) {
+            val filePathWithoutExtension = i.getFileNameWithoutExtension(file.getPath())
+            val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
+            val transformedFileExists = (writeFilesIntoIfdeftoifFolder && new File(path ++ fileNameWithoutExtension ++ "_ifdeftoif.c").exists) || (!writeFilesIntoIfdeftoifFolder && new File(filePathWithoutExtension ++ "_ifdeftoif.c").exists)
+            var fileName = file.getName()
+
+            if (!checkForExistingFiles || !transformedFileExists) {
+                /*for (i <- (analyseString.size / 4) until 15) {
+                  print("\t")
+                }*/
+
+                filesTransformed = filesTransformed + 1
+
+                val startParsingAndTypeChecking = System.currentTimeMillis()
+                val source_ast = i.getAstFromFile(file)
+                typecheckTranslationUnit(source_ast)
+                val defUseMap = getDeclUseMap
+                val useDefMap = getUseDeclMap
+                val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
+                //print("--Parsed--")
+
+                val tuple = i.ifdeftoif(prepareAST(source_ast), defUseMap, useDefMap, featureModel, fileNameWithoutExtension, timeToParseAndTypeCheck, makeAnalysis, path ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+                tuple._1 match {
+                    case None =>
+                        println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result !!")
+                    case Some(x) =>
+                        //PrettyPrinter.printD(x, path ++ fileNameWithoutExtension ++ ".ifdeftoif")
+                        println("++Transformed: " ++ fileName ++ "++\t\t --in " + tuple._2 ++ " ms--")
+                }
+
+                val startTransformation = System.currentTimeMillis()
+                val new_ast = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)
+                val timeToTransform = System.currentTimeMillis() - startTransformation
+                //print("\t--Transformed--")
+
+                val startPrettyPrinting = System.currentTimeMillis()
+                if (writeFilesIntoIfdeftoifFolder) {
+                    PrettyPrinter.printD(new_ast._1, path ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+                } else {
+                    //writeToTextFile(filePathWithoutExtension ++ ".ifdeftoif", transformedCode)
+                    PrettyPrinter.printD(new_ast._1, filePathWithoutExtension ++ "_ifdeftoif.c")
+                }
+                val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
+                //print("\t--Printed--\n")
+            }
         }
     }
 
@@ -2212,5 +2162,71 @@ static const char * const azCompileOpt[] = {
         val csvEntries = list.map(x => (x.getName(), compareTypeChecking(x))).map(y => y._1 + "," + y._2._1.toString + "," + y._2._2.toString + "," + i.computeDifference(y._2._1, y._2._2).toString + "\n") mkString
         val csvHeader = "File name, Type check source, Type check result, Difference\n"
         writeToTextFile(path ++ "type_check.csv", csvHeader + csvEntries)
+    }
+
+    private def compareTypeChecking(file: File): Tuple2[Long, Long] = {
+        val source_ast = i.getAstFromFile(file)
+        val defuses = getDefUse(source_ast)
+        val result_ast = i.transformAst(prepareAST(source_ast), defuses._1, defuses._2, 0)._1
+        val ts_source = getTypeSystem(source_ast)
+        val ts_result = getTypeSystem(result_ast)
+
+        val typeCheckSourceStart = System.currentTimeMillis()
+        ts_source.checkASTSilent
+        val typeCheckSourceDuration = System.currentTimeMillis() - typeCheckSourceStart
+        print("++" + file.getName() + "++\n" + "TypeCheck Source: \t\t" + typeCheckSourceDuration + "\t\t\t\t")
+
+        val typeCheckResultStart = System.currentTimeMillis()
+        ts_result.checkASTSilent
+        val typeCheckResultDuration = System.currentTimeMillis() - typeCheckResultStart
+        print("TypeCheck Result: \t\t" + typeCheckResultDuration + "\n\n")
+
+        (typeCheckSourceDuration, typeCheckResultDuration)
+    }
+
+    private def getDefUse(ast: TranslationUnit): (IdentityIdHashMap, IdentityIdHashMap) = {
+        typecheckTranslationUnit(ast)
+        (getDeclUseMap, getUseDeclMap)
+    }
+
+    private def analyseDir(dirToAnalyse: File): List[Tuple2[TranslationUnit, String]] = {
+        // retrieve all pi from dir first
+        if (dirToAnalyse.isDirectory) {
+            val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
+                def accept(dir: File, file: String): Boolean = file.endsWith(".pi")
+            })
+            val dirs = dirToAnalyse.listFiles(new FilenameFilter {
+                def accept(dir: File, file: String) = dir.isDirectory
+            })
+            piFiles.toList.map(x => {
+                val fis = new FileInputStream(x)
+                val ast = parseFile(fis, x.getName, x.getParent)
+                fis.close()
+                (ast, x.getName)
+            }) ++ dirs.flatMap(x => analyseDir(x))
+        } else {
+            List()
+        }
+    }
+
+    private def countFiles(dirToAnalyse: File, fileExtension: String = ".pi"): Int = {
+        def countHelp(file: File): Int = {
+            if (file.isDirectory) {
+                val piFiles = file.listFiles(new FilenameFilter {
+                    def accept(dir: File, fileName: String): Boolean = fileName.endsWith(fileExtension)
+                })
+                val dirs = file.listFiles(new FilenameFilter {
+                    def accept(dir: File, fileName: String) = dir.isDirectory
+                })
+                var numberOfFiles = piFiles.size
+                for (dir <- dirs) {
+                    numberOfFiles = numberOfFiles + countHelp(dir)
+                }
+                numberOfFiles
+            } else {
+                0
+            }
+        }
+        countHelp(dirToAnalyse)
     }
 }
