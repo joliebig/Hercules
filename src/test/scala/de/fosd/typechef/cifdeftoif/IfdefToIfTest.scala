@@ -952,16 +952,6 @@ static const char * const azCompileOpt[] = {
         println(testAst(source_ast))
     }
 
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
-    }
-
     @Ignore def test_array_def_use {
         val source_ast = getAST( """
       #ifdef awesome
@@ -1012,6 +1002,16 @@ static const char * const azCompileOpt[] = {
       }
                                  """);
         println(testAst(source_ast))
+    }
+
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
 
     @Ignore def test_struct_def_use {
@@ -1241,6 +1241,12 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
+    @Test def test_typedef_function_usage() {
+        val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -1332,12 +1338,6 @@ static const char * const azCompileOpt[] = {
         val fw = new FileWriter(name)
         fw.write(content)
         fw.close()
-    }
-
-    @Test def test_typedef_function_usage() {
-        val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
     }
 
     @Ignore def test_applets_pi() {
@@ -2141,7 +2141,7 @@ static const char * const azCompileOpt[] = {
         val c = Choice(FeatureExprFactory.createDefinedExternal("A"), One(Constant("0")), Choice(FeatureExprFactory.createDefinedExternal("B"), One(Constant("1")), One(Constant("2"))))
         println(PrettyPrinter.print(ElifStatement(c, One(EmptyStatement()))))
 
-        println("\n\n\n" + PrettyPrinter.print(ElifStatement(i.conditionalToConditionalExpr(c), One(EmptyStatement()))))
+        println("\n\n\n" + PrettyPrinter.print(ElifStatement(i.conditionalToConditionalExpr(c, FeatureExprFactory.True, FeatureExprFactory.True), One(EmptyStatement()))))
     }
 
     @Ignore def compareTypeCheckingTimes() {
