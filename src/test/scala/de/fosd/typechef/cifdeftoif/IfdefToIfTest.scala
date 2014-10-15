@@ -42,18 +42,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }
     }
 
-    /**
-     * Used for reading/writing to database, files, etc.
-     * Code From the book "Beginning Scala"
-     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
-     */
-    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
-        try {
-            f(param)
-        } finally {
-            param.close()
-        }
-
     @Test
     def liftingExpr() {
         val fa = FeatureExprFactory.createDefinedExternal("a")
@@ -844,16 +832,6 @@ static const char * const azCompileOpt[] = {
         println(testAst(source_ast))
     }
 
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
-    }
-
     @Ignore def normal_struct {
         val source_ast = getAST( """
       static const struct file_operations acpi_ac_fops = {
@@ -972,6 +950,16 @@ static const char * const azCompileOpt[] = {
                                  """);
         println(source_ast)
         println(testAst(source_ast))
+    }
+
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
 
     @Ignore def test_array_def_use {
@@ -1236,6 +1224,23 @@ static const char * const azCompileOpt[] = {
         assert(!ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
     }
 
+    @Test def test_alex_19() {
+        val file = new File(ifdeftoifTestPath + "19.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // bug was/is that a referenced label (next_link) was deleted from the ast
+        val labelRef = GotoStatement(Id("next_link"))
+        val labelDef = LabelStatement(Id("next_link"), None)
+        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
+    }
+
+    @Test def test_opt_flags() {
+        val file = new File(ifdeftoifTestPath + "opt_flags.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -1329,23 +1334,6 @@ static const char * const azCompileOpt[] = {
         fw.close()
     }
 
-    @Test def test_alex_19() {
-        val file = new File(ifdeftoifTestPath + "19.c")
-        println(i.getAstFromFile(file))
-        val ast: TranslationUnit = testFile(file)._2
-        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
-        // bug was/is that a referenced label (next_link) was deleted from the ast
-        val labelRef = GotoStatement(Id("next_link"))
-        val labelDef = LabelStatement(Id("next_link"), None)
-        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
-    }
-
-    @Test def test_opt_flags() {
-        val file = new File(ifdeftoifTestPath + "opt_flags.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
     @Test def test_typedef_function_usage() {
         val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
         println(i.getAstFromFile(file))
@@ -1413,7 +1401,7 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
-    @Test def test_decompress_unzip_pi() {
+    @Ignore def test_decompress_unzip_pi() {
         val file = new File(busyBoxPath + "archival/libarchive/decompress_unzip.pi")
         testFile(file)
     }
@@ -1475,11 +1463,6 @@ static const char * const azCompileOpt[] = {
         }
     }
 
-    def writeToFile(fileName: String, data: String) =
-        using(new FileWriter(fileName)) {
-            fileWriter => fileWriter.write(data)
-        }
-
     @Ignore def busybox_file_tests() {
         val fs = File.separator
         val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
@@ -1516,7 +1499,7 @@ static const char * const azCompileOpt[] = {
         })
     }
 
-    @Test def test_bbunzip_pi() {
+    @Ignore def test_bbunzip_pi() {
         val fs = File.separator
         val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
             busyBoxFmPath + fs + "busybox" + fs + "featureModel"))
@@ -1972,6 +1955,23 @@ static const char * const azCompileOpt[] = {
         }
         transformPiFiles(dirToAnalyse)
     }
+
+    def writeToFile(fileName: String, data: String) =
+        using(new FileWriter(fileName)) {
+            fileWriter => fileWriter.write(data)
+        }
+
+    /**
+     * Used for reading/writing to database, files, etc.
+     * Code From the book "Beginning Scala"
+     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
+     */
+    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
+        try {
+            f(param)
+        } finally {
+            param.close()
+        }
 
     private def runIfdefToIfOnPi(file: File, featureModel: FeatureModel = FeatureExprFactory.empty) {
         if (filesTransformed < filesToAnalysePerRun) {
