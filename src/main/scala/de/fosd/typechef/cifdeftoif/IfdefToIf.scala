@@ -1,6 +1,7 @@
 package de.fosd.typechef.cifdeftoif
 
 import java.io._
+import java.util
 import java.util.{Collections, IdentityHashMap}
 
 import de.fosd.typechef.ConfigurationHandling
@@ -533,10 +534,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 putIntoIdsToBeReplaced(x, ft)
             })
         } else if (usedef.containsKey(i)) {
-            val idUsages = usedef.get(i).flatMap(x => defuse.get(x))
-            idUsages.foreach(x => {
-                putIntoIdsToBeReplaced(x, ft)
+            val idUsages = usedef.get(i).flatMap(x => {
+              val usages = defuse.get(x) // can returned null iff no usage is known; if null is returned in flatMap then NPE is thrown
+              if (usages != null) usages else Set()
             })
+            idUsages.foreach(x => putIntoIdsToBeReplaced(x, ft))
         }
     }
 
