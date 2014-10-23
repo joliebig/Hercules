@@ -11,7 +11,7 @@ import de.fosd.typechef.options._
 import de.fosd.typechef.parser.TokenReader
 import de.fosd.typechef.parser.c._
 import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
-import de.fosd.typechef.{CPP_replacement_methods, ErrorXML}
+import de.fosd.typechef.{featureexpr, CPP_replacement_methods, ErrorXML}
 
 import scala.io.Source
 
@@ -23,7 +23,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
     override def main(args: Array[String]): Unit = {
         opt = new IfdefToIfOptions()
-        i = new IfdefToIf
         try {
             try {
                 opt.parseOptions(args)
@@ -39,6 +38,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 println("use parameter --help for more information.")
                 return
         }
+        // Needs to be initialized after options are processed.
+        // Otherwise FeatureExprFactory will still be the default (sat) and fields in IfdefToIf are initialized with sat expressions even if bdds are used later.
+        i = new IfdefToIf
 
         if (!opt.getFiles().isEmpty()) {
             processFile(opt)
