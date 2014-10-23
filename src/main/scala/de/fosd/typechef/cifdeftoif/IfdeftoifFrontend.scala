@@ -187,10 +187,10 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 val prefixStr = PrettyPrinter.print(prefixEx)
                                 i.writeExternIfdeftoIfStruct("../ifdeftoif/partialConfiguration.config", defaultConfigExpr, prefixStr)
                             } else {
-                                // TODO: i.writeExternIfdeftoIfStruct("../ifdeftoif/partialConfiguration.config")
+                                i.writeExternIfdeftoIfStruct("../ifdeftoif/partialConfiguration.config")
                             }
-                            println("MD option: " + opt.getMDoption)
                             if (opt.getMDoption != null && !opt.getMDoption.isEmpty) {
+                                println("MD option: " + opt.getMDoption)
                                 val dfilepath: String = CPP_replacement_methods.writeDependencyFile(ast, opt.getOutputStem, fileName, opt.getMDoption)
                                 println("written dependency file (.d) to " + dfilepath)
                             } else {
