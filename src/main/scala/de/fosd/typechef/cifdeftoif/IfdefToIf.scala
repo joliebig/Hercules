@@ -1758,6 +1758,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 // 4. Step
                 case elifs@ElifStatement(c: Conditional[Expr], thenBranch) =>
                     val conditionalTuple = conditionalToList(c, currentContext)
+                    if (conditionalTuple.isEmpty) {
+                      /* conditionalTuple might be List() at this point.
+                        In this case, conditionalTuple.find(y => x.implies(y._1).isTautology(fm)) is None (find does not find an entry with this property) and None.get causes an exception.
+                       */
+                      return List(optIf)
+                    }
                     val statementTuple = conditionalToList(thenBranch, currentContext)
                     val condFeatures = conditionalTuple.map(x => x._1)
                     val stmtFeatures = statementTuple.map(x => x._1)
