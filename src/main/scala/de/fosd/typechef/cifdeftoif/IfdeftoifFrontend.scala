@@ -11,7 +11,7 @@ import de.fosd.typechef.options._
 import de.fosd.typechef.parser.TokenReader
 import de.fosd.typechef.parser.c._
 import de.fosd.typechef.typesystem.{CDeclUse, CTypeCache, CTypeSystemFrontend}
-import de.fosd.typechef.{featureexpr, CPP_replacement_methods, ErrorXML}
+import de.fosd.typechef.{CPP_replacement_methods, ErrorXML}
 
 import scala.io.Source
 
@@ -75,6 +75,8 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         }
 
         var ast: TranslationUnit = null
+        var ast_replaced: TranslationUnit = null
+        val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
 
         stopWatch.start("lexing")
         //no parsing if read serialized ast
@@ -94,13 +96,13 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 ast = prepareAST[TranslationUnit](ast)
                 if (opt.ifdeftoif) {
                     // preprocessing: replace situations with too much local variability (e.g. different string in each variant) with prepared replacements
-                    val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
                     if (replacementDefintionsFile.exists()) {
                         val (newAst, usedVariables) = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
-                        ast = newAst
+                        ast_replaced = i.prepareASTforIfdef(newAst)
                         i.loadAndUpdateFeatures(usedVariables)
-                    } else
+                    } else {
                         println("Did not find file with replacement definitions: " + replacementDefintionsFile.getPath)
+                    }
                     ast = i.prepareASTforIfdef(ast)
                 }
 
@@ -132,7 +134,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 */
 
                 // some dataflow analyses require typing information
-                val ts = new CTypeSystemFrontend(ast, fullFM, opt) with CTypeCache with CDeclUse
+                var ts = new CTypeSystemFrontend(ast, fullFM, opt) with CTypeCache with CDeclUse
 
                 if (opt.typecheck || opt.writeInterface) {
                     //PrCDeclUseoductGeneration.typecheckProducts(fm,fullFM,ast,opt,
@@ -161,6 +163,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //logMessage=("Time for lexing(ms): " + (t2-t1) + "\nTime for parsing(ms): " + (t3-t2) + "\n"))
                             //ProductGeneration.estimateNumberOfVariants(ast, fullFM)
                             //val includeStructFilename = opt.getincludeStructFilename()
+                            if (replacementDefintionsFile.exists()) {
+                                ts = new CTypeSystemFrontend(ast_replaced, fullFM, opt) with CTypeCache with CDeclUse
+                            }
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
                             i.setParseFM(parseFM)
@@ -281,10 +286,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             currentPeriod = period
         }
 
-        private def genId(): Int = {
-            currentPeriodId += 1; currentPeriodId
-        }
-
         def get(period: String): Long = times.filter(v => v._1._2 == period).headOption.map(_._2).getOrElse(0)
 
         override def toString = {
@@ -302,6 +303,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
         private def measure(checkpoint: String) {
             times = times + ((genId(), checkpoint) -> System.currentTimeMillis())
+        }
+
+        private def genId(): Int = {
+            currentPeriodId += 1;
+            currentPeriodId
         }
     }
 }
