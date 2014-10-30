@@ -897,7 +897,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                          */
                                         val exprFeatures = computeFExpsForDuplication(expr, newCtx)
                                         if (exceedsThreshold(exprFeatures)) {
-                                            List(o)
+                                            List(transformPossibleIdentifiers(o, curCtx))
                                         } else {
                                             val condExpr = convertToCondExpr(init, exprFeatures, curCtx, functionContext)
                                             List(transformRecursive(Opt(ft,
@@ -1625,7 +1625,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val elsFeatures = elseTuple.map(x => x._1)
                     val carthProduct = computeCarthesianProduct(List(stmtFeatures, elsFeatures), currentContext, optIf.entry)
                     if (exceedsThreshold(carthProduct)) {
-                        return List(optIf)
+                        return List(transformPossibleIdentifiers(optIf, currentContext))
                     }
                     carthProduct match {
                         case Nil =>
@@ -1657,7 +1657,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val stmtFeatures = statementTuple.map(x => x._1)
                     val carthProduct = computeCarthesianProduct(List(condFeatures, stmtFeatures), currentContext, elif)
                     if (exceedsThreshold(carthProduct)) {
-                        return List(optIf)
+                        return List(transformPossibleIdentifiers(optIf, currentContext))
                     }
                     carthProduct match {
                         case Nil =>
@@ -1747,7 +1747,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val elsFeatures = elseTuple.map(x => x._1)
                     val carthProduct = computeCarthesianProduct(List(condFeatures, stmtFeatures, elsFeatures), currentContext, ifs)
                     if (exceedsThreshold(carthProduct)) {
-                        return List(optIf)
+                        return List(transformPossibleIdentifiers(optIf, currentContext))
                     }
                     carthProduct.flatMap(x => {
                         val cond = conditionalTuple.find(y => x.implies(y._1).isTautology(fm)).get._2
@@ -1774,7 +1774,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val stmtFeatures = statementTuple.map(x => x._1)
                     val carthProduct = computeCarthesianProduct(List(stmtFeatures, condFeatures), currentContext, elifs)
                     if (exceedsThreshold(carthProduct)) {
-                        return List(optIf)
+                        return List(transformPossibleIdentifiers(optIf, currentContext))
                     }
                     carthProduct match {
                         case Nil =>
@@ -1855,11 +1855,14 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val features = computeFExpsForDuplication(expr, currentContext)
                     val newExpr = convertToCondExpr(expr, features, currentContext, functionContext)
                     List(Opt(trueF, WhileStatement(newExpr, One(transformRecursive(replaceOptAndId(stmt, currentContext, functionContext), currentContext, false, functionContext)))))
-                case SwitchStatement(expr, One(stmt: Statement)) =>
+                case sw@SwitchStatement(expr, One(stmt: Statement)) =>
                     val exprFeatures = computeFExpsForDuplication(expr, currentContext)
                     val newExpr = convertToCondExpr(expr, exprFeatures, currentContext, functionContext)
                     // val caseFeatures = computeCaseFeatures(stmt.asInstanceOf[CompoundStatement], currentContext)
                     val caseFeatures = computeTotalCaseFeatures(stmt.asInstanceOf[CompoundStatement], currentContext)
+                    if (exceedsThreshold(caseFeatures)) {
+                        return List(transformPossibleIdentifiers(Opt(trueF, sw), currentContext))
+                    }
                     if (caseFeatures.isEmpty) {
                         List(Opt(trueF, SwitchStatement(newExpr, One(transformRecursive(replaceOptAndId(stmt, currentContext, functionContext), currentContext, false, functionContext)))))
                     } else {
@@ -2020,7 +2023,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     }
                 }
                 if (exceedsThreshold(features)) {
-                    List(Opt(trueF, tmpDecl))
+                    List(transformPossibleIdentifiers(Opt(trueF, tmpDecl), declarationFeature.and(curCtx)))
                 } else if (!features.isEmpty) {
                     if (isStruct && !specifierFeatures.isEmpty) {
                         val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(convertStructSpecifier(tmpDecl, specifierFeatures.find(y => x.implies(y).isTautology()).getOrElse(trueF)), x, functionContext), x), x, false, functionContext)))
