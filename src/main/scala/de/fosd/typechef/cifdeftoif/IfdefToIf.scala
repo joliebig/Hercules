@@ -230,44 +230,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-     * given ast.
-     */
-    def loadAndUpdateFeatures(ast: TranslationUnit): Unit = {
-        loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
-    }
-
-    /**
-     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-     * given feature expression set.
-     */
-    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]): Unit = {
-        featureExpressions ++= newFeatures
-        featuresInAst = featureExpressions.size
-        var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
-        if (new File(serializedFeaturePath).exists) {
-            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-            allFeatureExpressions = featureExpressions ++ loadedFeatures
-        } else {
-            allFeatureExpressions = featureExpressions
-        }
-        serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
-    }
-
-    /**
-     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
-     * assigning selection states to features. The feature selection states are read from the given .config file path.
-     */
-    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
-        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
-        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
-        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
-
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
-    }
-
-    /**
      * Converts a set of FeatureExpressions into a struct declaration.
      */
     private def getOptionStruct(defExSet: Set[SingleFeatureExpr]): Declaration = {
@@ -338,6 +300,44 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         Opt(trueF,
             ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
                 PointerPostfixSuffix(".", Id(featureName.toLowerCase))), "=", assignmentSource)))
+    }
+
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given ast.
+     */
+    def loadAndUpdateFeatures(ast: TranslationUnit): Unit = {
+        loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
+    }
+
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given feature expression set.
+     */
+    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]): Unit = {
+        featureExpressions ++= newFeatures
+        featuresInAst = featureExpressions.size
+        var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
+        if (new File(serializedFeaturePath).exists) {
+            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
+            allFeatureExpressions = featureExpressions ++ loadedFeatures
+        } else {
+            allFeatureExpressions = featureExpressions
+        }
+        serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
+    }
+
+    /**
+     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
+     * assigning selection states to features. The feature selection states are read from the given .config file path.
+     */
+    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
+        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
+        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
+        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
+
+        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
     }
 
     /**
@@ -1706,13 +1706,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     if (features.isEmpty) {
                         List(Opt(trueF, IfStatement(One(replaceOptAndId(expr, currentContext, functionContext)), One(transformRecursive(stmt, currentContext, false, functionContext)), elif.flatMap(x => handleIfStatement(replaceOptAndId(x, currentContext, functionContext), currentContext, functionContext)).asInstanceOf[List[Opt[ElifStatement]]], transformRecursive(replaceOptAndId(els, currentContext, functionContext), currentContext, false, functionContext))))
                     } else {
-                        features.flatMap(x => List(Opt(trueF,
-                            IfStatement(
-                                One(NAryExpr(toCExpr(fExprDiff(currentContext, x)), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(expr, x, functionContext)))))),
-                                transformRecursive(replaceOptAndId(One(convertStatementToCompound(stmt)), x, functionContext), x, false, functionContext),
-                                elif.flatMap(y => handleIfStatement(replaceOptAndId(y, x, functionContext), x, functionContext))
-                                    .asInstanceOf[List[Opt[ElifStatement]]],
-                                transformRecursive(replaceOptAndId(els, x, functionContext), x, false, functionContext)))))
+                        features.flatMap(x => List(Opt(trueF, IfStatement(One(toCExpr(fExprDiff(currentContext, x))), One(CompoundStatement(List(Opt(trueF, IfStatement(
+                            One(replaceOptAndId(expr, x, functionContext)),
+                            transformRecursive(replaceOptAndId(One(convertStatementToCompound(stmt)), x, functionContext), x, false, functionContext),
+                            elif.flatMap(y => handleIfStatement(replaceOptAndId(y, x, functionContext), x, functionContext)).asInstanceOf[List[Opt[ElifStatement]]],
+                            transformRecursive(replaceOptAndId(els, x, functionContext), x, false, functionContext)))))), List(), None))))
                     }
 
                 // alternative 3. Step with elseBranch
@@ -1721,13 +1719,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     if (features.isEmpty) {
                         List(Opt(trueF, IfStatement(One(replaceOptAndId(expr, currentContext, functionContext)), One(transformRecursive(stmt, currentContext, false, functionContext)), elif.flatMap(x => handleIfStatement(replaceOptAndId(x, currentContext, functionContext), currentContext, functionContext)).asInstanceOf[List[Opt[ElifStatement]]], transformRecursive(replaceOptAndId(els, currentContext, functionContext), currentContext, false, functionContext))))
                     } else {
-                        features.flatMap(x => List(Opt(trueF,
-                            IfStatement(
-                                One(NAryExpr(toCExpr(fExprDiff(currentContext, x)),
-                                    List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(expr, x, functionContext)))))),
+                        features.flatMap(x => List(Opt(trueF, IfStatement(One(toCExpr(fExprDiff(currentContext, x))), One(CompoundStatement(List(Opt(trueF, IfStatement(
+                            One(replaceOptAndId(expr, x, functionContext)),
                                 transformRecursive(replaceOptAndId(One(convertStatementToCompound(stmt)), x, functionContext), x, false, functionContext),
                                 elif.flatMap(y => handleIfStatement(replaceOptAndId(y, x, functionContext), x, functionContext)).asInstanceOf[List[Opt[ElifStatement]]],
-                                transformRecursive(replaceOptAndId(els, x, functionContext), x, false, functionContext)))))
+                            transformRecursive(replaceOptAndId(els, x, functionContext), x, false, functionContext)))))), List(), None))))
                     }
 
                 // 2. Step
@@ -1753,11 +1749,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         val cond = conditionalTuple.find(y => x.implies(y._1).isTautology(fm)).get._2
                         val stmt = One(statementTuple.find(z => x.implies(z._1).isTautology(fm)).get._2)
                         val elsBranch = elseTuple.find(e => x.implies(e._1).isTautology(fm)).getOrElse((currentContext, None.asInstanceOf[Option[Conditional[Statement]]]))._2
-                        handleIfStatement(Opt(trueF, IfStatement(
-                            One(NAryExpr(toCExpr(fExprDiff(currentContext, x)), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(cond, x, functionContext)))))),
+                        List(Opt(trueF, IfStatement(One(toCExpr(fExprDiff(currentContext, x))), One(CompoundStatement(
+                            handleIfStatement(Opt(trueF, IfStatement(
+                                One(replaceOptAndId(cond, x, functionContext)),
                             replaceAndTransform(stmt, x, false, functionContext),
                             replaceOptAndId(elif.flatMap(y => handleIfStatement(y, x, functionContext).asInstanceOf[List[Opt[ElifStatement]]]), x, functionContext),
-                            replaceAndTransform(elsBranch, x, false, functionContext))), x, functionContext)
+                                replaceAndTransform(elsBranch, x, false, functionContext))), x, functionContext).asInstanceOf[List[Opt[Statement]]])), List(), None)))
                     })
 
                 // 4. Step
