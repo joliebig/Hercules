@@ -24,21 +24,24 @@ object PreparedIfdeftoifParts {
         val (preparedParts, preparedPartsLists) =
             loadPreparedPartsFromFile(definitionsFile)
         var ret = inAST
+        var total_num_matches = 0
         for ((search, repl) <- preparedParts) {
-            val retnew = replaceManyTD(ret, search, repl)
+            val (retnew, num_matches) = replaceManyTD(ret, search, repl)
+            total_num_matches += num_matches
             if (retnew != ret) {
                 ret = retnew // found and replaced search object
                 replacedFeatures ++= IfdeftoifUtils.getSingleFeatures(search)
             }
         }
         for ((search, replLst) <- preparedPartsLists) {
-            val retnew = replaceManyTD(ret, search, replLst)
+            val (retnew, num_matches) = replaceManyTD(ret, search, replLst)
+            total_num_matches += num_matches
             if (retnew != ret) {
                 ret = retnew // found and replaced search object
                 replacedFeatures ++= IfdeftoifUtils.getSingleFeatures(search)
             }
         }
-        println("did ast part replacement with " + (preparedPartsLists.size + preparedParts.size) + " prepared parts")
+        println("did ast part replacement with " + (preparedPartsLists.size + preparedParts.size) + " prepared parts, replaced " + total_num_matches + " matches.")
         return (ret, replacedFeatures)
     }
 
@@ -90,28 +93,32 @@ object PreparedIfdeftoifParts {
         case e: ObjectStreamException => System.err.println("failed loading serialized object: " + e.getMessage); null
     }
 
-    def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: Opt[_]): T = {
+    def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: Opt[_]): (T, Int) = {
+        var num_matches = 0
         val r = manytd(rule {
             case l: List[_] =>
                 l.flatMap(x =>
-                    if (x == mark)
-                        replace :: Nil
-                    else
+                    if (x == mark) {
+                      num_matches+=1
+                      replace :: Nil
+                    } else
                         x :: Nil)
         })
-        r(t).get.asInstanceOf[T]
+      (r(t).get.asInstanceOf[T], num_matches)
     }
 
-    def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: List[Opt[_]]): T = {
+    def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: List[Opt[_]]): (T, Int) = {
+        var num_matches = 0
         val r = manytd(rule {
             case l: List[_] =>
                 l.flatMap(x =>
-                    if (x == mark)
-                        replace
-                    else
+                    if (x == mark) {
+                      num_matches+=1
+                      replace
+                    } else
                         x :: Nil)
         })
-        r(t).get.asInstanceOf[T]
+      (r(t).get.asInstanceOf[T], num_matches)
     }
 
     def serializeObject(obj: Any): String = {
