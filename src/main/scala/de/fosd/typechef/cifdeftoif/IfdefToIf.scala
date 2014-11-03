@@ -607,7 +607,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     l.flatMap {
                         case o@Opt(ft, LabelStatement(id, attrib)) =>
                             val composedFeature = ft.and(feat)
-                            if (ft.implies(functionContext).isTautology) {
+                            if (!composedFeature.isSatisfiable(fm)) {
+                                List()
+                            } else if (functionContext.implies(ft).isTautology) {
                                 List(o.copy(feature = trueF))
                             } else {
                                 // Labels have to be renamed to avoid having the same label name occur multiple times after a duplication
