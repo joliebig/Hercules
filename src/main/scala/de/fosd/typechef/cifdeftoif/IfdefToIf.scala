@@ -609,7 +609,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             val composedFeature = ft.and(feat)
                             if (!composedFeature.isSatisfiable(fm)) {
                                 List()
-                            } else if (functionContext.implies(ft).isTautology) {
+                            } else if (functionContext.implies(ft).isTautology(fm) && ft.implies(feat).isTautology(fm)) {
                                 List(o.copy(feature = trueF))
                             } else {
                                 // Labels have to be renamed to avoid having the same label name occur multiple times after a duplication
@@ -636,28 +636,24 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case i: Id =>
                     updateIdMap(feat)
                     val featureList = idsToBeReplaced.get(i)
-                    val matchingId = featureList.find(x => feat.implies(x).isTautology(fm))
+                    val matchingId = featureList.filter(x => feat.implies(x).isTautology(fm)).toList
                     matchingId match {
-                        case None =>
+                        case Nil =>
                             // Check for a matching ID in a context which is still satisfiable
-                            val newMatchingId = featureList.find(x => feat.and(x).isSatisfiable(fm))
+                            val newMatchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
                             newMatchingId match {
-                                case None =>
+                                case Nil =>
                                     // TODO: this should not happen?
                                     i
-                                case Some(x: FeatureExpr) =>
-                                    if (x.equivalentTo(trueF, fm)) {
-                                        i
-                                    } else {
-                                        prependCtxPrefix(i, x)
-                                    }
+                                case (x: FeatureExpr) :: Nil =>
+                                    prependCtxPrefix(i, x)
+                                case _ =>
+                                    i
                             }
-                        case Some(x: FeatureExpr) =>
-                            if (x.equivalentTo(trueF, fm)) {
-                                i
-                            } else {
-                                prependCtxPrefix(i, x)
-                            }
+                        case (x: FeatureExpr) :: Nil =>
+                            prependCtxPrefix(i, x)
+                        case _ =>
+                            i
                     }
             })
             r(t).getOrElse(t).asInstanceOf[T]
