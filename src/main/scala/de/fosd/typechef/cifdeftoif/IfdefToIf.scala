@@ -644,20 +644,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case i: Id =>
                     updateIdMap(feat)
                     val featureList = idsToBeReplaced.get(i)
-                    val matchingId = featureList.filter(x => feat.implies(x).isTautology(fm)).toList
+                    val matchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
                     matchingId match {
                         case Nil =>
                             // Check for a matching ID in a context which is still satisfiable
-                            val newMatchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
-                            newMatchingId match {
-                                case Nil =>
-                                    // TODO: this should not happen?
-                                    i
-                                case (x: FeatureExpr) :: Nil =>
-                                    prependCtxPrefix(i, x)
-                                case _ =>
-                                    i
-                            }
+                           // TODO: warning
+                          i
                         case (x: FeatureExpr) :: Nil =>
                             prependCtxPrefix(i, x)
                         case _ =>
@@ -1130,6 +1122,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         val potentialResultSize = Math.min(potentialResultSize1, potentialResultSize2)
         if (potentialResultSize > duplicationThreshold) {
             var errorMessage = ""
+          // ausgabe in threshold funktion, extra fall für opt, prettyprint opt.entry
             if (a.isInstanceOf[AST]) {
                 val currentElement = a.asInstanceOf[AST]
                 if (currentElement.getPositionFrom.getLine.equals(-1))

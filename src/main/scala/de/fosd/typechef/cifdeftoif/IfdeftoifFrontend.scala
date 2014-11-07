@@ -165,6 +165,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //val includeStructFilename = opt.getincludeStructFilename()
                             if (replacementDefintionsFile.exists()) {
                                 ts = new CTypeSystemFrontend(ast_replaced, fullFM, opt) with CTypeCache with CDeclUse
+                                ts.checkAST()
                                 ast = ast_replaced
                             }
                             stopWatch.start("ifdeftoif")
