@@ -771,7 +771,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         } else {
             ifdeftoif_file = newPath
         }
-        PrettyPrinter.printD(result_ast, ifdeftoif_file, createIncludeDirective(externOptionStructPath))
+
+        if (useExternConfigStruct) {
+            PrettyPrinter.printD(result_ast, ifdeftoif_file, createIncludeDirective(externOptionStructPath))
+        } else {
+            PrettyPrinter.printD(result_ast, ifdeftoif_file)
+        }
         println("Printed ifdeftoif to file " + ifdeftoif_file)
 
         if (!typecheckResult) {
