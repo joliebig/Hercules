@@ -38,9 +38,10 @@ object CPP_replacement_methods {
         if (in.isInstanceOf[AST]) {
             val ast = in.asInstanceOf[AST]
             val file = ast.getFile
-            if (file.isDefined && !file.isEmpty) {
+            if (file.isDefined) {
                 var fname = file.get
-                if (fname.endsWith(".c") || fname.endsWith(".h")) {
+                // it seems that sometimes a null pointer is stored in ast.getFile (.isDefined is true, but .get returns null)
+                if (fname != null && (fname.endsWith(".c") || fname.endsWith(".h"))) {
                     if (fname.startsWith("file "))
                         fname = fname.substring("file ".length)
                     if (new File(fname).isAbsolute) {
