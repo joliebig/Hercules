@@ -1063,7 +1063,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         /*feature.and(context)*/
     }
 
-    def prepareASTforIfdef(ast: Product, ctx: FeatureExpr = trueF): TranslationUnit = {
+    def prepareASTforIfdef(ast: TranslationUnit, ctx: FeatureExpr = trueF): TranslationUnit = {
         astEnv = createASTEnv(ast)
 
         def prepareASTforIfdefHelper[T <: Product](t: T, currentContext: FeatureExpr = trueF): T = {
