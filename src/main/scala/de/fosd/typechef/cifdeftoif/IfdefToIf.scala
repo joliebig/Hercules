@@ -968,7 +968,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     countDuplications(o.entry, result.size, isTopLevel)
                                     result
                                 case _: IfStatement | _: WhileStatement | _: SwitchStatement | _: DoStatement | _: ForStatement =>
-                                    val result = handleStatement(o, newCtx, functionContext)
+                                    val result = handleStatement(o, curCtx, functionContext)
                                     countDuplications(o.entry, result.size, isTopLevel)
                                     result
                                 case r: ReturnStatement =>
@@ -980,6 +980,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         } else {
                                             List(Opt(trueF, statementToIf(replaceAndTransform(r, newCtx, isTopLevel, functionContext), newCtx, curCtx, functionContext)))
                                         }
+                                    }
+                                case c: ContinueStatement =>
+                                    if (curCtx.implies(ft).isTautology()) {
+                                        List(Opt(trueF, c))
+                                    } else {
+                                        List(Opt(trueF, statementToIf(c, ft, curCtx, functionContext)))
                                     }
                                 case g: GotoStatement =>
                                     if (!fExps.isEmpty) {
