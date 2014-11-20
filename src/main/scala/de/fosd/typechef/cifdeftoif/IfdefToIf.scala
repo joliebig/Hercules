@@ -1100,7 +1100,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case Nil =>
                     List()
                 case x :: Nil =>
-                    x
+                    x.map(x => x.and(currentContext)).filter(x => x.isSatisfiable())
                 case x :: xs =>
                     xs.foldLeft(x)((first, second) => {
                         if (first.size > 1000) {
@@ -1108,7 +1108,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         }
                         first.flatMap(y => {
                             second.flatMap(z => {
-                                val andResult = z.and(y)
+                                val andResult = z.and(y).and(currentContext)
                                 if (andResult.isSatisfiable() && andResult.isSatisfiable(fm)) {
                                     List(andResult)
                                 } else {
@@ -1695,10 +1695,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def handleIfStatement(optIf: Opt[_], currentContext: FeatureExpr, functionContext: FeatureExpr): List[Opt[_]] = {
 
         // 1. Step
-        if (!optIf.feature.equivalentTo(trueF)) {
+        if (!optIf.feature.equivalentTo(trueF) && !currentContext.implies(optIf.feature).isTautology) {
             optIf.entry match {
                 case IfStatement(cond, thenBranch, elifs, elseBranch) =>
-                    List(Opt(trueF, IfStatement(One(toCExpr(fExprDiff(currentContext, optIf.feature))), One(CompoundStatement(handleIfStatement(replaceOptAndId(optIf, optIf.feature, functionContext), optIf.feature, functionContext).asInstanceOf[List[Opt[Statement]]])), List(), None)))
+                    val newContext = optIf.feature.and(currentContext)
+                    List(Opt(trueF, IfStatement(One(toCExpr(fExprDiff(currentContext, optIf.feature))), One(CompoundStatement(handleIfStatement(replaceOptAndId(optIf, newContext, functionContext), newContext, functionContext).asInstanceOf[List[Opt[Statement]]])), List(), None)))
                 case _ =>
                     List()
             }
