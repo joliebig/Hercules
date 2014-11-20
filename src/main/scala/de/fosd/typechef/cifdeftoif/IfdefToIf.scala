@@ -1063,7 +1063,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         /*feature.and(context)*/
     }
 
-    def prepareASTforIfdef(ast: TranslationUnit, ctx: FeatureExpr = trueF): TranslationUnit = {
+    def prepareASTforIfdef(ast: Product, ctx: FeatureExpr = trueF): TranslationUnit = {
         astEnv = createASTEnv(ast)
 
         def prepareASTforIfdefHelper[T <: Product](t: T, currentContext: FeatureExpr = trueF): T = {
@@ -1760,7 +1760,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 // 2. Step
                 case ifs@IfStatement(c: Conditional[Expr], thenBranch: Conditional[Statement], elif, els) =>
                     val conditionalTuple = conditionalToList(c, currentContext)
-                    println(thenBranch.toList)
                     val statementTuple = conditionalToList(thenBranch, currentContext)
                     var elseTuple = List((trueF, None.asInstanceOf[Option[Conditional[Statement]]]))
                     els match {
