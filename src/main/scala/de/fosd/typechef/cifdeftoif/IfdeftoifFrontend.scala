@@ -168,6 +168,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 ts.checkAST()
                                 ast = ast_replaced
                             }
+                            if (opt.assume_no_switch_fallthrough) {
+                                i.setDuplicateSwitchStatementsCompletely(false)
+                            }
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
                             i.setParseFM(parseFM)

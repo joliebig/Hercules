@@ -104,9 +104,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var presenceConditionNumberMap: Map[FeatureExpr, Int] = Map()
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
-    // Indicates if switch statements are transformed in a simple way
+    /** Indicates if switch statements are transformed in a simple, safe way (duplication).
+     * If this is set to false, we assume that each fall through in a switch statement is guaranteed to not fall in an optional case block.
+     * The user has to guarantee this, otherwise we produce wrong control flow (iff duplicateSwitchStatementsCompletely==false).
+     */
     private var duplicateSwitchStatementsCompletely: Boolean = true
 
+    def setDuplicateSwitchStatementsCompletely(newVal : Boolean): Unit = {
+        duplicateSwitchStatementsCompletely=newVal
+    }
     def setParseFM(smallFM: FeatureModel) = {
         parseFM = smallFM
     }
