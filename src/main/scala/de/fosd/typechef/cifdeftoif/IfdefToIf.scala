@@ -86,6 +86,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Same data structure as above used for the second ifdeftoif run
     private val idsToBeReplacedSecondRun: IdentityHashMap[Id, Set[FeatureExpr]] = new IdentityHashMap()
     private val createFunctionsForModelChecking = false
+    // Indicates if switch statements are transformed in a simple way
+    private val duplicateSwitchStatementsCompletely: Boolean = false
     /* Variables used for the ifdeftoif transformation process */
     private var astEnv: ASTEnv = null
     private var fm: FeatureModel = FeatureExprFactory.empty
@@ -104,8 +106,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var presenceConditionNumberMap: Map[FeatureExpr, Int] = Map()
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
-    // Indicates if switch statements are transformed in a simple way
-    private var duplicateSwitchStatementsCompletely: Boolean = true
 
     def setParseFM(smallFM: FeatureModel) = {
         parseFM = smallFM
@@ -873,7 +873,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * - declarations which need to be duplicated/renamed
      */
     def transformRecursive[T <: Product](t: T, curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false, functionContext: FeatureExpr = trueF): T = {
-        val r = alltd(rule {
+        val transformation = alltd(rule {
             case l: List[Opt[_]] =>
                 l.flatMap {
                     case o@Opt(ft, entry) =>
@@ -983,6 +983,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                             List(Opt(trueF, statementToIf(replaceAndTransform(r, newCtx, isTopLevel, functionContext), newCtx, curCtx, functionContext)))
                                         }
                                     }
+                                case bs: BreakStatement =>
+                                    if (ft.implies(curCtx).isTautology() && !curCtx.implies(ft).isTautology()) {
+                                        List(Opt(trueF, statementToIf(replaceAndTransform(bs, newCtx, isTopLevel, functionContext), newCtx, curCtx, functionContext)))
+                                    } else {
+                                        List(o)
+                                    }
                                 case c: ContinueStatement =>
                                     if (curCtx.implies(ft).isTautology()) {
                                         List(Opt(trueF, c))
@@ -1056,7 +1062,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     case k => List(transformRecursive(k, curCtx, false, functionContext))
                 }
         })
-        r(t).getOrElse(t).asInstanceOf[T]
+        transformation(t).getOrElse(t).asInstanceOf[T]
     }
 
     /**
@@ -2110,14 +2116,20 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                         result
                     } else {
-                        val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature, functionContext), declarationFeature)
-                        /*var tmp = replaceOptAndId(tmpDecl, declarationFeature)
-                        / Skip renaming function forward declarations which are only optional
-                        if (!isFunctionForwardDeclaration(init)) {
-                            tmp = convertId(tmp, declarationFeature)
-                        }*/
-                        val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
-                        result
+                        if (isFunctionForwardDeclaration(tmpDecl.init) && !declarationFeature.equals(trueF)) {
+                            // Don't rename optional function forward declarations
+                            val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
+                            result
+                        } else {
+                            val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature, functionContext), declarationFeature)
+                            /*var tmp = replaceOptAndId(tmpDecl, declarationFeature)
+                            / Skip renaming function forward declarations which are only optional
+                            if (!isFunctionForwardDeclaration(init)) {
+                                tmp = convertId(tmp, declarationFeature)
+                            }*/
+                            val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
+                            result
+                        }
                     }
                 }
         }
