@@ -1840,7 +1840,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         return List(transformPossibleIdentifiers(Opt(trueF, sw), currentContext))
                     }
                     if (caseFeatures.isEmpty) {
-                        List(Opt(trueF, SwitchStatement(newExpr, One(transformRecursive(replaceOptAndId(compoundStmt, currentContext, functionContext), currentContext, false, functionContext)))))
+                        if (simpleSwitchTransformation) {
+                            List(Opt(trueF, SwitchStatement(newExpr, One(transformRecursive(replaceOptAndId(handleSwitchCompoundStmt(stmt.asInstanceOf[CompoundStatement], currentContext, expr), currentContext, functionContext), currentContext, false, functionContext)))))
+                        } else {
+                            List(Opt(trueF, SwitchStatement(newExpr, One(transformRecursive(replaceOptAndId(compoundStmt, currentContext, functionContext), currentContext, false, functionContext)))))
+                        }
                     } else {
                         if (simpleSwitchTransformation) {
                             caseFeatures.map(x => Opt(trueF, IfStatement(One(toCExpr(fExprDiff(currentContext, x))), One(CompoundStatement(List(Opt(trueF, SwitchStatement(newExpr, One(transformRecursive(replaceOptAndId(handleSwitchCompoundStmt(stmt.asInstanceOf[CompoundStatement], x, expr), x, functionContext), x))))))), List(), None)))
