@@ -168,9 +168,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 ts.checkAST()
                                 ast = ast_replaced
                             }
-                            if (opt.assume_no_switch_fallthrough) {
-                                i.setDuplicateSwitchStatementsCompletely(false)
-                            }
+                            i.setSimpleSwitchTransformation(opt.simple_switch_transformation)
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
                             i.setParseFM(parseFM)
@@ -291,6 +289,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             currentPeriod = period
         }
 
+        private def genId(): Int = {
+            currentPeriodId += 1;
+            currentPeriodId
+        }
+
         def get(period: String): Long = times.filter(v => v._1._2 == period).headOption.map(_._2).getOrElse(0)
 
         override def toString = {
@@ -308,11 +311,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
         private def measure(checkpoint: String) {
             times = times + ((genId(), checkpoint) -> System.currentTimeMillis())
-        }
-
-        private def genId(): Int = {
-            currentPeriodId += 1;
-            currentPeriodId
         }
     }
 }
