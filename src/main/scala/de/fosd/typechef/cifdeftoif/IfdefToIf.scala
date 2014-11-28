@@ -2429,6 +2429,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     private def insertIfdeftoifLabel(cmpStmt: CompoundStatement): CompoundStatement = {
         var containsIfdeftoifLabel = false
+        var defaultStatementExists = false
         val result = CompoundStatement(cmpStmt.innerStatements.flatMap(x =>
             x match {
                 case o@Opt(ft, LabelStatement(id: Id, None)) =>
@@ -2436,6 +2437,17 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         containsIfdeftoifLabel = true
                     }
                     List(o)
+                case o@Opt(ft, entry: DefaultStatement) =>
+                    if (defaultStatementExists) {
+                        List()
+                    } else {
+                        defaultStatementExists = true
+                        if (!containsIfdeftoifLabel) {
+                            List(Opt(trueF, LabelStatement(Id("ifdeftoif_label_" + getIfdeftoifLabelNo()), None)), Opt(trueF, entry))
+                        } else {
+                            List(Opt(trueF, entry))
+                        }
+                    }
                 case o@Opt(ft, entry: DefaultStatement) if (!containsIfdeftoifLabel) =>
                     List(Opt(trueF, LabelStatement(Id("ifdeftoif_label_" + getIfdeftoifLabelNo()), None)), o)
                 case o =>
