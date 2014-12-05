@@ -10,6 +10,8 @@ import de.fosd.typechef.parser.c._
 import de.fosd.typechef.typesystem._
 import org.junit.{Ignore, Test}
 
+import scala.sys.process._
+
 import scala.io.Source
 
 class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclUse with CTypeSystem with TestHelper with EnforceTreeHelper {
@@ -1235,6 +1237,14 @@ static const char * const azCompileOpt[] = {
         assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
     }
 
+    @Test def basic_gcc_test() {
+      val file = new File(ifdeftoifTestPath + "basic_gcc_test.c")
+      println(i.getAstFromFile(file))
+      val result:Int = testFileSemantics(file,8)
+      println("Test result is " + result)
+      assert(result == 8)
+    }
+
     @Test def test_opt_flags() {
         val file = new File(ifdeftoifTestPath + "opt_flags.c")
         println(i.getAstFromFile(file))
@@ -1257,6 +1267,7 @@ static const char * const azCompileOpt[] = {
         }
         val startParsingAndTypeChecking = System.currentTimeMillis()
         val ast = i.prepareASTforIfdef(i.getAstFromFile(file))
+        if (ast == null) assert(false, "Could not parse input file " + file.toPath)
         val source_ast = prepareAST(ast)
         val ts = getTypeSystem(source_ast)
         //val env = createASTEnv(source_ast)
@@ -1329,6 +1340,79 @@ static const char * const azCompileOpt[] = {
             (0, TranslationUnit(List()))
         }
     }
+  def testFileSemantics(file: File, expectedResultValue:Int, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty) : Int = {
+    new File(singleFilePath).mkdirs()
+    val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
+    val analyseString = "++Analyse: " + file.getName + "++"
+    print(analyseString)
+    for (i <- (analyseString.size / 4) until 15) {
+      print("\t")
+    }
+    val startParsingAndTypeChecking = System.currentTimeMillis()
+    val ast = i.prepareASTforIfdef(i.getAstFromFile(file))
+    if (ast == null) assert(false, "Could not parse input file " + file.toPath)
+    val source_ast = prepareAST(ast)
+    val ts = getTypeSystem(source_ast)
+    //val env = createASTEnv(source_ast)
+    ts.typecheckTranslationUnit(source_ast)
+    val defUseMap = ts.getDeclUseMap
+    val useDefMap = ts.getUseDeclMap
+    val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
+    print("--Parsed--")
+
+    if (!i.checkAstSilent(source_ast)) {
+      println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
+      return (-1)
+    }
+
+    val startTransformation = System.currentTimeMillis()
+    val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
+    val timeToTransform = System.currentTimeMillis() - startTransformation
+    print("\t--Transformed--")
+
+    //println("\n" + PrettyPrinter.print(new_ast._1))
+
+    val startPrettyPrinting = System.currentTimeMillis()
+    val ifdeftoif_File = new File(singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+    PrettyPrinter.printD(new_ast._1, ifdeftoif_File.getAbsolutePath)
+    val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
+    print("\t--Printed--\n")
+    if (writeAst) {
+      writeToTextFile(fileNameWithoutExtension ++ "_ast.txt", source_ast.toString())
+    }
+
+    if (makeAnalysis) {
+      PrettyPrinter.printD(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
+      writeToTextFile(singleFilePath ++ fileNameWithoutExtension ++ ".csv", i.getCSVHeader + new_ast._2)
+
+
+      // new_ast._1 is the generated ast
+      // can we compile (gcc) and execute?
+      // compile
+      var proc : Process = sys.process.stringToProcess("gcc " + ifdeftoif_File + "  -o ifdeftoif_test.o").run
+      if (proc.exitValue() != 0) { // blocks until command is finished
+        println("gcc failed")
+        (-1)
+      }
+      // execute binary
+      proc = sys.process.stringToProcess("./ifdeftoif_test.o").run
+      val id2iExecExitVal = proc.exitValue()
+      // cleanup (remove binary)
+      proc = sys.process.stringToProcess("rm -f ifdeftoif_test.o").run
+      if (proc.exitValue() < 0) {
+        println("Could not remove generated binary " + ifdeftoif_File)
+      }
+      // check if binary execution return value was the expected one
+      if (id2iExecExitVal != expectedResultValue) {
+        println("Result value (" + id2iExecExitVal + ") did not match expected (" + expectedResultValue + ")")
+        (id2iExecExitVal)
+      } else {
+        return id2iExecExitVal
+      }
+    } else {
+      -1
+    }
+  }
 
     def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
         new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
