@@ -1,5 +1,5 @@
-int main() {  
-    int a = 1;
+int main(int argc, char **argv) {
+    int a = argv[1][0] - '0';
 	int toReturn = 1;
     switch (a) { 
         case 0: break;  
