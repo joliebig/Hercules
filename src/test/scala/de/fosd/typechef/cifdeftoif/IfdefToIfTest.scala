@@ -149,16 +149,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         println(testAst(ast))
     }
 
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
-    }
-
     @Ignore def test_function2() {
         val ast2 = getAST( """
       #if definedEx(A)
@@ -884,6 +874,16 @@ static const char * const azCompileOpt[] = {
         println(testAst(source_ast))
     }
 
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
+    }
+
     @Ignore def test_opt_struct {
         val source_ast = getAST( """
       #ifdef ENABLE_COMPRESSION
@@ -1161,6 +1161,54 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
+    @Test def test_alex_9() {
+        val file = new File(ifdeftoifTestPath + "9.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_10() {
+        val file = new File(ifdeftoifTestPath + "10.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_11() {
+        val file = new File(ifdeftoifTestPath + "11.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_12() {
+        val file = new File(ifdeftoifTestPath + "12.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_13() {
+        val file = new File(ifdeftoifTestPath + "13.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_14() {
+        val file = new File(ifdeftoifTestPath + "14.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_15() {
+        val file = new File(ifdeftoifTestPath + "15.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test def test_alex_16() {
+        val file = new File(ifdeftoifTestPath + "16.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -1253,54 +1301,6 @@ static const char * const azCompileOpt[] = {
         val fw = new FileWriter(name)
         fw.write(content)
         fw.close()
-    }
-
-    @Test def test_alex_9() {
-        val file = new File(ifdeftoifTestPath + "9.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_10() {
-        val file = new File(ifdeftoifTestPath + "10.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_11() {
-        val file = new File(ifdeftoifTestPath + "11.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_12() {
-        val file = new File(ifdeftoifTestPath + "12.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_13() {
-        val file = new File(ifdeftoifTestPath + "13.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_14() {
-        val file = new File(ifdeftoifTestPath + "14.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_15() {
-        val file = new File(ifdeftoifTestPath + "15.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test def test_alex_16() {
-        val file = new File(ifdeftoifTestPath + "16.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
     }
 
     @Test def test_alex_17() {
@@ -1410,6 +1410,17 @@ static const char * const azCompileOpt[] = {
         }
     }
 
+    @Test def switch_case_default() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default.c")
+
+        val disabledTuples = List((0, 0), (1, 6), (2, -1), (3, 3), (4, -1))
+        assert(testMultipleFileSemantics(file, disabledTuples))
+
+        val enabledFeatures = featureNameToFExprSet(List("a"))
+        val enabledTuples = List((0, 0), (1, 8), (2, -1), (3, 3), (4, 4))
+        assert(testMultipleFileSemantics(file, enabledTuples, enabledFeatures))
+    }
+
     @Test def switch_case() {
         val file = new File(ifdeftoifTestPath + "switch_case.c")
 
@@ -1419,6 +1430,67 @@ static const char * const azCompileOpt[] = {
         val enabledFeatures = featureNameToFExprSet(List("a"))
         val enabledTuples = List((0, 1), (1, 4), (2, 2), (3, 4))
         assert(testMultipleFileSemantics(file, enabledTuples, enabledFeatures))
+    }
+
+    @Test def switch_case_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
+
+        val disabledTuples = List((0, 1), (1, -1), (2, 1), (3, 4), (4, -4))
+        assert(testMultipleFileSemantics(file, disabledTuples))
+
+        val aFeatures = featureNameToFExprSet(List("a"))
+        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, -4))
+        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
+
+        val bFeatures = featureNameToFExprSet(List("b"))
+        val bTuples = List((0, 1), (1, -13), (2, -5), (3, 4), (4, 7))
+        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
+
+        val abFeatures = featureNameToFExprSet(List("a", "b"))
+        val abTuples = List((0, 1), (1, 19), (2, 11), (3, 4), (4, 7))
+        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+    }
+
+    @Test def switch_case_default_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
+
+        val disabledTuples = List((0, 1), (1, -1), (2, 1), (3, 1), (4, 4), (5, 1))
+        assert(testMultipleFileSemantics(file, disabledTuples))
+
+        val aFeatures = featureNameToFExprSet(List("a"))
+        val aTuples = List((0, 1), (1, 7), (2, 5), (3, -1), (4, 4), (5, -1))
+        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
+
+        val bFeatures = featureNameToFExprSet(List("b"))
+        val bTuples = List((0, 1), (1, -16), (2, -8), (3, 4), (4, 4), (5, 1))
+        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
+
+        val abFeatures = featureNameToFExprSet(List("a", "b"))
+        val abTuples = List((0, 1), (1, 16), (2, 8), (3, 4), (4, 4), (5, -1))
+        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+    }
+
+    @Test def switch_case_default_3() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
+
+        val disabledTuples = List((0, 1), (1, -12), (2, -6), (3, -2))
+        assert(testMultipleFileSemantics(file, disabledTuples))
+
+        val aFeatures = featureNameToFExprSet(List("a"))
+        val aTuples = List((0, 1), (1, -10), (2, -5), (3, -5))
+        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
+
+        val bFeatures = featureNameToFExprSet(List("b"))
+        val bTuples = List((0, 1), (1, -12), (2, -6), (3, -2))
+        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
+
+        val abFeatures = featureNameToFExprSet(List("a", "b"))
+        val abTuples = List((0, 1), (1, 10), (2, 5), (3, 5))
+        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+    }
+
+    def featureNameToFExprSet(featureNames: List[String]): Set[SingleFeatureExpr] = {
+        featureNames.map(x => FeatureExprFactory.createDefinedExternal(x.toUpperCase)).toSet
     }
 
     def testMultipleFileSemantics(file: File, inputsAndResults: List[Tuple2[Int, Int]], enabledFeatures: Set[SingleFeatureExpr] = Set(), writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): Boolean = {
@@ -1500,21 +1572,6 @@ static const char * const azCompileOpt[] = {
         } else {
             null.asInstanceOf[Boolean]
         }
-    }
-
-    def featureNameToFExprSet(featureNames: List[String]): Set[SingleFeatureExpr] = {
-        featureNames.map(x => FeatureExprFactory.createDefinedExternal(x.toUpperCase)).toSet
-    }
-
-    @Test def switch_case_default() {
-        val file = new File(ifdeftoifTestPath + "switch_case_default.c")
-
-        val disabledTuples = List((0, 0), (1, 6), (2, -1), (3, 3), (4, -1))
-        assert(testMultipleFileSemantics(file, disabledTuples))
-
-        val enabledFeatures = featureNameToFExprSet(List("a"))
-        val enabledTuples = List((0, 0), (1, 8), (2, -1), (3, 3), (4, 4))
-        assert(testMultipleFileSemantics(file, enabledTuples, enabledFeatures))
     }
 
     @Test def test_opt_flags() {
