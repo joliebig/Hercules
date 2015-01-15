@@ -788,6 +788,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             isFirstRun = false
             new_ast = transformRecursive(new_ast, trueF)
         }
+
+        // combine IfStatements
+        // new_ast = combineIfStatements(new_ast)
         val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
         var result_ast: TranslationUnit = new_ast
 
@@ -1513,6 +1516,19 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Converts a non CompoundStatement into a CompoundStatement.
+     * Ex: 3 + 1; -> { 3 + 1; }
+     */
+    def convertStatementToCompound(stmt: Statement): CompoundStatement = {
+        stmt match {
+            case cs: CompoundStatement =>
+                cs
+            case k =>
+                CompoundStatement(List(Opt(trueF, stmt)))
+        }
+    }
+
+    /**
      * Takes a look at the CaseStatements and CompoundStatements inside a SwitchStatement in order to determine
      * the list of FeatureExpressions needed for duplication.
      *
@@ -1538,19 +1554,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }).filter(x => !x.equivalentTo(trueF)).flatMap(x => x.collectDistinctFeatureObjects).distinct).filter(x => x.implies(currentContext).isTautology(fm))
         caseFeatures
     }*/
-
-    /**
-     * Converts a non CompoundStatement into a CompoundStatement.
-     * Ex: 3 + 1; -> { 3 + 1; }
-     */
-    def convertStatementToCompound(stmt: Statement): CompoundStatement = {
-        stmt match {
-            case cs: CompoundStatement =>
-                cs
-            case k =>
-                CompoundStatement(List(Opt(trueF, stmt)))
-        }
-    }
 
     /**
      * Calls the proper function to transform a statement st depending on the type of st.
@@ -2209,6 +2212,36 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         })
         r(ast)
         false
+    }
+
+    private def combineIfStatements(ast: TranslationUnit): TranslationUnit = {
+        val transformation = manytd(rule {
+            case CompoundStatement(inner: List[Opt[Statement]]) =>
+                CompoundStatement(inner.foldLeft(List().asInstanceOf[List[Opt[Statement]]])((first, second) => {
+                    if (first.isEmpty) {
+                        second :: first
+                    } else {
+                        first.head match {
+                            case Opt(trueF, IfStatement(condF, One(stmtF: CompoundStatement), List(), None)) =>
+                                second match {
+                                    case Opt(trueF, IfStatement(condS, One(stmtS: CompoundStatement), List(), None)) =>
+                                        if (condF == condS) {
+                                            Opt(trueF, IfStatement(condF, One(CompoundStatement(stmtF.innerStatements ++ stmtS.innerStatements)), List(), None)) :: first.tail
+                                        } else {
+                                            second :: first
+                                        }
+                                    case _ =>
+                                        second :: first
+                                }
+                            case _ =>
+                                second :: first
+                        }
+                    }
+                }).reverse)
+            case k =>
+                k
+        })
+        transformation(ast).getOrElse(ast).asInstanceOf[TranslationUnit]
     }
 
     /**
