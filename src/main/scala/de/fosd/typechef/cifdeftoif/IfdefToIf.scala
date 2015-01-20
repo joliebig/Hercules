@@ -252,6 +252,51 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Appends the featurePrefix to feature expressions.
+     */
+    def getFeatureName(fExpr: FeatureExpr): String = {
+        featurePrefix + fExpr.toString().toLowerCase
+    }
+
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given ast.
+     */
+    def loadAndUpdateFeatures(ast: TranslationUnit): Unit = {
+        loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
+    }
+
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given feature expression set.
+     */
+    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]): Unit = {
+        featureExpressions ++= newFeatures
+        featuresInAst = featureExpressions.size
+        var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
+        if (new File(serializedFeaturePath).exists) {
+            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
+            allFeatureExpressions = featureExpressions ++ loadedFeatures
+        } else {
+            allFeatureExpressions = featureExpressions
+        }
+        serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
+    }
+
+    /**
+     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
+     * assigning selection states to features. The feature selection states are read from the given .config file path.
+     */
+    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
+        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
+        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
+        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
+
+        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+    }
+
+    /**
      * Converts a set of FeatureExpressions into a struct declaration.
      */
     private def getOptionStruct(defExSet: Set[SingleFeatureExpr]): Declaration = {
@@ -273,6 +318,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     AtomicNamedDeclarator(List(), Id(getFeatureName(featureName)), List()),
                     None,
                     List())))))
+    }
+
+    def getFeatureName(name: String): String = {
+        featurePrefix + name.toLowerCase
     }
 
     /**
@@ -322,55 +371,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         Opt(trueF,
             ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
                 PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
-    }
-
-    def getFeatureName(name: String): String = {
-        featurePrefix + name.toLowerCase
-    }
-
-    /**
-     * Appends the featurePrefix to feature expressions.
-     */
-    def getFeatureName(fExpr: FeatureExpr): String = {
-        featurePrefix + fExpr.toString().toLowerCase
-    }
-
-    /**
-     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-     * given ast.
-     */
-    def loadAndUpdateFeatures(ast: TranslationUnit): Unit = {
-        loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
-    }
-
-    /**
-     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-     * given feature expression set.
-     */
-    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]): Unit = {
-        featureExpressions ++= newFeatures
-        featuresInAst = featureExpressions.size
-        var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
-        if (new File(serializedFeaturePath).exists) {
-            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-            allFeatureExpressions = featureExpressions ++ loadedFeatures
-        } else {
-            allFeatureExpressions = featureExpressions
-        }
-        serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
-    }
-
-    /**
-     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
-     * assigning selection states to features. The feature selection states are read from the given .config file path.
-     */
-    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
-        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
-        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
-        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
-
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
     }
 
     /**
@@ -790,7 +790,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
 
         // combine IfStatements
-        // new_ast = combineIfStatements(new_ast)
+        new_ast = combineIfStatements(new_ast)
         val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
         var result_ast: TranslationUnit = new_ast
 
@@ -2214,6 +2214,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         false
     }
 
+    /**
+     * Combines if statements with the same condition.
+     */
     private def combineIfStatements(ast: TranslationUnit): TranslationUnit = {
         val transformation = manytd(rule {
             case CompoundStatement(inner: List[Opt[Statement]]) =>
@@ -2222,7 +2225,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         case Opt(trueF, IfStatement(condF, One(stmtF: CompoundStatement), List(), None)) =>
                             second match {
                                 case Opt(trueF, IfStatement(condS, One(stmtS: CompoundStatement), List(), None)) =>
-                                    if (condF == condS) {
+                                    if (isIfdeftoifCondition(condF) && condF == condS) {
                                         Opt(trueF, IfStatement(condF, One(CompoundStatement(stmtF.innerStatements ++ stmtS.innerStatements)), List(), None)) :: first.tail
                                     } else {
                                         second :: first
@@ -2238,6 +2241,21 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 k
         })
         transformation(ast).getOrElse(ast).asInstanceOf[TranslationUnit]
+    }
+
+    /**
+     * Checks if given Conditional[Expr] is a condition generated from the ifdeftoif transformation process (see
+     * function toCExpr).
+     */
+    private def isIfdeftoifCondition(cExpr: Conditional[Expr]): Boolean = {
+        cExpr match {
+            case One(NAryExpr(PostfixExpr(Id("id2i"), PointerPostfixSuffix(".", i: Id)), _)) =>
+                return true
+            case One(PostfixExpr(Id("id2i"), PointerPostfixSuffix(".", i: Id))) =>
+                return true
+            case _ =>
+                return false
+        }
     }
 
     /**
