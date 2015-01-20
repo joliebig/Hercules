@@ -2219,7 +2219,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     private def combineIfStatements(ast: TranslationUnit): TranslationUnit = {
         val transformation = manytd(rule {
-            case CompoundStatement(inner: List[Opt[Statement]]) =>
+            case CompoundStatement(inner: List[Opt[Statement]]) if inner.size > 1 =>
                 CompoundStatement(inner.tail.foldLeft(List(inner.head))((first, second) => {
                     first.head match {
                         case Opt(trueF, IfStatement(condF, One(stmtF: CompoundStatement), List(), None)) =>
