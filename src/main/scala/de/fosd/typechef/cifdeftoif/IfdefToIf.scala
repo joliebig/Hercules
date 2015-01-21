@@ -110,6 +110,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var presenceConditionNumberMap: Map[FeatureExpr, Int] = Map()
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
+    private var combineCounter = 0
+
     /**
      * Indicates if switch statements are transformed in a safe way (duplication).
      * If this is set to true, we don't generate new switch statements for variability occuring in child nodes of the switch statement.
@@ -792,6 +794,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         // combine IfStatements
         new_ast = combineIfStatements(new_ast)
         val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
+        println("Combined " + combineCounter + " times.")
         var result_ast: TranslationUnit = new_ast
 
         var typecheck_ast: TranslationUnit = TranslationUnit(List())
@@ -1129,8 +1132,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             One(CompoundStatement(List(Opt(trueF, prepareASTforIfdefHelper(k, currentContext)))))
                     }
                 case c@Choice(ft, thenBranch, elseBranch) =>
-                    val newChoiceFeature = fExprDiff(astEnv.featureExpr(c), ft)
-                    val result = Choice(newChoiceFeature, thenBranch, elseBranch)
+                    val choiceCtx = astEnv.featureExpr(c)
+                    val newChoiceFeature = fExprDiff(choiceCtx, ft)
+                    val result = Choice(newChoiceFeature, prepareASTforIfdefHelper(thenBranch, choiceCtx.and(newChoiceFeature)), prepareASTforIfdefHelper(elseBranch, choiceCtx.and(newChoiceFeature.not())))
                     result
             })
             r(t) match {
@@ -2226,6 +2230,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             second match {
                                 case Opt(trueF, IfStatement(condS, One(stmtS: CompoundStatement), List(), None)) =>
                                     if (isIfdeftoifCondition(condF) && condF == condS) {
+                                        combineCounter = combineCounter + 1
                                         Opt(trueF, IfStatement(condF, One(CompoundStatement(stmtF.innerStatements ++ stmtS.innerStatements)), List(), None)) :: first.tail
                                     } else {
                                         second :: first
