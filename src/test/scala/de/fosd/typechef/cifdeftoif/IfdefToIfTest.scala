@@ -1489,6 +1489,18 @@ static const char * const azCompileOpt[] = {
         assert(testMultipleFileSemantics(file, abTuples, abFeatures))
     }
 
+    @Test def variable_condition_test_1() {
+      val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
+
+      var abFeatures = featureNameToFExprSet(List("sqlite_default_memstatus"))
+      var abTuples = List((0, 1))
+      assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+
+      abFeatures = Set()
+      abTuples = List((0, -1))
+      assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+    }
+
     def featureNameToFExprSet(featureNames: List[String]): Set[SingleFeatureExpr] = {
         featureNames.map(x => FeatureExprFactory.createDefinedExternal(x.toUpperCase)).toSet
     }
