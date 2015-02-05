@@ -1670,8 +1670,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
-    def combineExpr(expr: Expr, expr2: Expr, operator: String, size: Int = 2): Expr = {
-        if (expr.equals(Id("")) || size > 2) {
+    def combineExpr(expr: Expr, expr2: Expr, operator: String): Expr = {
+        if (expr.equals(Id(""))) {
             // Don't combine
             expr2
         } else {
@@ -1778,7 +1778,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     }
                     carthProduct match {
                         case Nil =>
-                            val cond = combineExpr(addedCondition, conditionalTuple.find(y => currentContext.implies(y._1).isTautology(fm)).get._2, "&&", conditionalTuple.size)
+                            val cond = combineExpr(addedCondition, conditionalTuple.find(y => currentContext.implies(y._1).isTautology(fm)).get._2, "&&")
                             val exprFeatures = computeNextRelevantFeaturesUnempty(cond, currentContext)
                             val stmt = One(statementTuple.find(z => currentContext.implies(z._1).isTautology(fm)).get._2)
                             exprFeatures match {
@@ -1786,13 +1786,16 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                     exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), replaceAndTransform(stmt, x, false, functionContext))))
                                 case x :: xs =>
                                     // TODO: verify generation of a new condition with the newly added context from exprFeatures
-                                    exprFeatures.map(x => Opt(trueF, ElifStatement(One(NAryExpr(toCExpr(x), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(cond, x, functionContext)))))), replaceAndTransform(stmt, x, false, functionContext))))
+                                    exprFeatures.map(x => Opt(trueF, ElifStatement(One(NAryExpr(toCExpr(fExprDiff(currentContext, x)), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(cond, x, functionContext)))))), replaceAndTransform(stmt, x, false, functionContext))))
                                 case k =>
                                     Nil
                             }
-                        case k =>
+                        case x :: Nil =>
+                            System.err.println("Carthesian product of size 1 for ElifStatement:  " + elifs)
+                            List()
+                        case x :: xs =>
                             carthProduct.flatMap(x => {
-                                val cond = combineExpr(toCExpr(x), combineExpr(addedCondition, conditionalTuple.find(y => x.implies(y._1).isTautology(fm)).get._2, "&&"), "&&", conditionalTuple.size)
+                                val cond = combineExpr(toCExpr(fExprDiff(currentContext, x)), combineExpr(addedCondition, conditionalTuple.find(y => x.implies(y._1).isTautology(fm)).get._2, "&&"), "&&")
                                 val exprFeatures = computeNextRelevantFeaturesUnempty(cond, x)
                                 val stmt = One(statementTuple.find(z => x.implies(z._1).isTautology(fm)).get._2)
                                 exprFeatures match {
@@ -1800,7 +1803,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         exprFeatures.map(y => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, y, functionContext)), replaceAndTransform(stmt, y, false, functionContext))))
                                     case x :: xs =>
                                         // TODO: verify generation of a new condition with the newly added context from exprFeatures
-                                        exprFeatures.map(y => Opt(trueF, ElifStatement(One(NAryExpr(toCExpr(y), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(cond, y, functionContext)))))), replaceAndTransform(stmt, y, false, functionContext))))
+                                        exprFeatures.map(y => Opt(trueF, ElifStatement(One(NAryExpr(toCExpr(fExprDiff(currentContext, y)), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(cond, y, functionContext)))))), replaceAndTransform(stmt, y, false, functionContext))))
                                     case k =>
                                         Nil
                                 }
