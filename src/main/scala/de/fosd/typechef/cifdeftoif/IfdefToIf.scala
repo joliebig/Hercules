@@ -1670,8 +1670,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
-    def combineExpr(expr: Expr, expr2: Expr, operator: String): Expr = {
-        if (expr.equals(Id(""))) {
+    def combineExpr(expr: Expr, expr2: Expr, operator: String, size: Int = 2): Expr = {
+        if (expr.equals(Id("")) || size > 2) {
+            // Don't combine
             expr2
         } else {
             NAryExpr(expr, List(Opt(trueF, NArySubExpr(operator, expr2))))
@@ -1777,7 +1778,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     }
                     carthProduct match {
                         case Nil =>
-                            val cond = combineExpr(addedCondition, conditionalTuple.find(y => currentContext.implies(y._1).isTautology(fm)).get._2, "&&")
+                            val cond = combineExpr(addedCondition, conditionalTuple.find(y => currentContext.implies(y._1).isTautology(fm)).get._2, "&&", conditionalTuple.size)
                             val exprFeatures = computeNextRelevantFeaturesUnempty(cond, currentContext)
                             val stmt = One(statementTuple.find(z => currentContext.implies(z._1).isTautology(fm)).get._2)
                             exprFeatures match {
@@ -1791,7 +1792,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             }
                         case k =>
                             carthProduct.flatMap(x => {
-                                val cond = combineExpr(addedCondition, conditionalTuple.find(y => x.implies(y._1).isTautology(fm)).get._2, "&&")
+                                val cond = combineExpr(toCExpr(x), combineExpr(addedCondition, conditionalTuple.find(y => x.implies(y._1).isTautology(fm)).get._2, "&&"), "&&", conditionalTuple.size)
                                 val exprFeatures = computeNextRelevantFeaturesUnempty(cond, x)
                                 val stmt = One(statementTuple.find(z => x.implies(z._1).isTautology(fm)).get._2)
                                 exprFeatures match {
