@@ -18,7 +18,19 @@ struct Sqlite3Config {
 };
 
 struct Sqlite3Config sqlite3Config = {
-   #if definedEx(SQLITE_DEFAULT_MEMSTATUS)
+   #if defined(IFDEF_VAR)
+   1
+   #else
+   0
+   #endif
+};
+
+struct Sqlite3Config_2 {
+  int bMemstat;                     /* True to enable memory status */
+};
+
+struct Sqlite3Config sqlite3Config_2 = {
+   #if defined(IFDEF_VAR_2)
    1
    #else
    0
@@ -26,21 +38,56 @@ struct Sqlite3Config sqlite3Config = {
 };
 
 #define sqlite3GlobalConfig sqlite3Config
+#define sqlite3GlobalConfig_2 sqlite3Config_2
 
 int main(int argc, char **argv) {
 
     int nOld = 0;
     int nNew = 1;
+    int toReturn=1;
 
     if( nOld==nNew ){
-
-    } else if( sqlite3GlobalConfig.bMemstat ){ // should be 1 iff defined(SQLITE_DEFAULT_MEMSTATUS)
-    #if definedEx(SQLITE_DEFAULT_MEMSTATUS)
-        return 1;       // should be returned iff defined(SQLITE_DEFAULT_MEMSTATUS)
+    } else if( sqlite3GlobalConfig.bMemstat ){ // should be 1 iff defined(IFDEF_VAR)
+    #if defined(IFDEF_VAR)
+        toReturn += 1;       // should be returned iff defined(IFDEF_VAR)
     #else
-        return 0;       // should not be reachable
+        toReturn += 2000;       // should not be reachable
     #endif
     }
-    return 5; // should be returned iff ! defined(SQLITE_DEFAULT_MEMSTATUS)
+    #if defined(ELSE)
+    else {
+        toReturn += 2;
+    }
+    #endif
+    if( sqlite3GlobalConfig.bMemstat ){ // should be 1 iff defined(IFDEF_VAR)
+        #if defined(IFDEF_VAR)
+            toReturn += 5;       // should be returned iff defined(IFDEF_VAR)
+        #else
+            toReturn += 2000;       // should not be reachable
+        #endif
+    }
+     #if defined(ELSE)
+    else {
+        toReturn += 20;
+    }
+    #endif
+    if( sqlite3GlobalConfig.bMemstat ){ // should be 1 iff defined(IFDEF_VAR)
+            #if defined(IFDEF_VAR)
+                toReturn += 5;       // should be returned iff defined(IFDEF_VAR)
+            #else
+                toReturn += 2000;       // should not be reachable
+            #endif
+        } else if( sqlite3GlobalConfig_2.bMemstat ){ // should be 1 iff defined(IFDEF_VAR_2)
+                    #if defined(IFDEF_VAR_2)
+                        toReturn += 30;       // should be returned iff defined(IFDEF_VAR_2)
+                    #else
+                        toReturn += 2000;       // should not be reachable
+                    #endif
+                }
+         #if defined(ELSE)
+        else {
+            toReturn += 20;
+        }
+        #endif
+    return 3000;
 }
-

@@ -1576,14 +1576,30 @@ static const char * const azCompileOpt[] = {
 
     @Test def variable_condition_test_1() {
         val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
+        // input values do not matter in this test
+        var abFeatures : Set[SingleFeatureExpr] = Set()
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
 
-        var abFeatures = featureNameToFExprSet(List("sqlite_default_memstatus"))
-        var abTuples = List((0, 1))
-        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+        abFeatures = featureNameToFExprSet(List("IFDEF_VAR"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
 
-        abFeatures = Set()
-        abTuples = List((0, 5))
-        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+        abFeatures = featureNameToFExprSet(List("IFDEF_VAR_2"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
+
+        abFeatures = featureNameToFExprSet(List("ELSE"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
+
+        abFeatures = featureNameToFExprSet(List("IFDEF_VAR","IFDEF_VAR_2"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
+
+        abFeatures = featureNameToFExprSet(List("IFDEF_VAR","ELSE"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
+
+        abFeatures = featureNameToFExprSet(List("IFDEF_VAR_2","ELSE"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
+
+        abFeatures = featureNameToFExprSet(List("IFDEF_VAR","IFDEF_VAR_2","ELSE"))
+        assert(testMultipleFileSemantics(file, List((0, 184)), abFeatures))
     }
 
     @Ignore def test_opt_flags() {
