@@ -8,14 +8,14 @@ int main(int argc, char **argv) {
         case 2: toReturn = toReturn*2; 
 #endif 
 #ifndef A
-		case 2: toReturn = toReturn*(-2);
+		case 2: toReturn = toReturn*5;
 #endif
 #ifdef B
 		case 3: toReturn = toReturn*4; break;
 #endif
         case 4: toReturn = toReturn + 3; break;
 #ifdef A
-		default: toReturn = toReturn*(-1); break;
+		default: toReturn = toReturn*100; break;
 #endif
     }
 	return toReturn;

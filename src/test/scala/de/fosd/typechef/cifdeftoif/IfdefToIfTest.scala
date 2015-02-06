@@ -1412,12 +1412,12 @@ static const char * const azCompileOpt[] = {
 
     @Test def switch_case_default() {
         val file = new File(ifdeftoifTestPath + "switch_case_default.c")
-
-        val disabledTuples = List((0, 0), (1, 6), (2, -1), (3, 3), (4, -1))
+      testFile(file)
+        val disabledTuples = List((0, 0), (1, 6), (2, 5), (3, 3), (4, 5))
         assert(testMultipleFileSemantics(file, disabledTuples))
 
         val enabledFeatures = featureNameToFExprSet(List("a"))
-        val enabledTuples = List((0, 0), (1, 8), (2, -1), (3, 3), (4, 4))
+        val enabledTuples = List((0, 0), (1, 8), (2, 5), (3, 3), (4, 4))
         assert(testMultipleFileSemantics(file, enabledTuples, enabledFeatures))
     }
 
@@ -1435,15 +1435,15 @@ static const char * const azCompileOpt[] = {
     @Test def switch_case_2() {
         val file = new File(ifdeftoifTestPath + "switch_case_2.c")
 
-        val disabledTuples = List((0, 1), (1, -1), (2, 1), (3, 4), (4, -4))
+        val disabledTuples = List((0, 1), (1, 23), (2, 13), (3, 4), (4, 30))
         assert(testMultipleFileSemantics(file, disabledTuples))
 
         val aFeatures = featureNameToFExprSet(List("a"))
-        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, -4))
+        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, 30))
         assert(testMultipleFileSemantics(file, aTuples, aFeatures))
 
         val bFeatures = featureNameToFExprSet(List("b"))
-        val bTuples = List((0, 1), (1, -13), (2, -5), (3, 4), (4, 7))
+        val bTuples = List((0, 1), (1, 83), (2, 43), (3, 4), (4, 7))
         assert(testMultipleFileSemantics(file, bTuples, bFeatures))
 
         val abFeatures = featureNameToFExprSet(List("a", "b"))
@@ -1454,19 +1454,19 @@ static const char * const azCompileOpt[] = {
     @Test def switch_case_default_2() {
         val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
 
-        val disabledTuples = List((0, 1), (1, -1), (2, 1), (3, 1), (4, 4), (5, 1))
+        val disabledTuples = List((0, 1), (1, 13), (2, 8), (3, 1), (4, 4), (5, 1))
         assert(testMultipleFileSemantics(file, disabledTuples))
 
         val aFeatures = featureNameToFExprSet(List("a"))
-        val aTuples = List((0, 1), (1, 7), (2, 5), (3, -1), (4, 4), (5, -1))
+        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 100), (4, 4), (5, 100))
         assert(testMultipleFileSemantics(file, aTuples, aFeatures))
 
         val bFeatures = featureNameToFExprSet(List("b"))
-        val bTuples = List((0, 1), (1, -16), (2, -8), (3, 4), (4, 4), (5, 1))
+        val bTuples = List((0, 1), (1, 40), (2, 20), (3, 4), (4, 4), (5, 1))
         assert(testMultipleFileSemantics(file, bTuples, bFeatures))
 
         val abFeatures = featureNameToFExprSet(List("a", "b"))
-        val abTuples = List((0, 1), (1, 16), (2, 8), (3, 4), (4, 4), (5, -1))
+        val abTuples = List((0, 1), (1, 16), (2, 8), (3, 4), (4, 4), (5, 100))
         assert(testMultipleFileSemantics(file, abTuples, abFeatures))
     }
 
@@ -1558,15 +1558,15 @@ static const char * const azCompileOpt[] = {
     @Test def switch_case_default_3() {
         val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
 
-        val disabledTuples = List((0, 1), (1, -12), (2, -6), (3, -2))
+        val disabledTuples = List((0, 1), (1, 180), (2, 90), (3, 30))
         assert(testMultipleFileSemantics(file, disabledTuples))
 
         val aFeatures = featureNameToFExprSet(List("a"))
-        val aTuples = List((0, 1), (1, -10), (2, -5), (3, -5))
+        val aTuples = List((0, 1), (1, 40), (2, 20), (3, 20))
         assert(testMultipleFileSemantics(file, aTuples, aFeatures))
 
         val bFeatures = featureNameToFExprSet(List("b"))
-        val bTuples = List((0, 1), (1, -12), (2, -6), (3, -2))
+        val bTuples = List((0, 1), (1, 180), (2, 90), (3, 30))
         assert(testMultipleFileSemantics(file, bTuples, bFeatures))
 
         val abFeatures = featureNameToFExprSet(List("a", "b"))
@@ -1582,7 +1582,7 @@ static const char * const azCompileOpt[] = {
         assert(testMultipleFileSemantics(file, abTuples, abFeatures))
 
         abFeatures = Set()
-        abTuples = List((0, -1))
+        abTuples = List((0, 5))
         assert(testMultipleFileSemantics(file, abTuples, abFeatures))
     }
 

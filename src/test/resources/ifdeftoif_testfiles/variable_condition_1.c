@@ -41,6 +41,6 @@ int main(int argc, char **argv) {
         return 0;       // should not be reachable
     #endif
     }
-    return -1; // should be returned iff ! defined(SQLITE_DEFAULT_MEMSTATUS)
+    return 5; // should be returned iff ! defined(SQLITE_DEFAULT_MEMSTATUS)
 }
 

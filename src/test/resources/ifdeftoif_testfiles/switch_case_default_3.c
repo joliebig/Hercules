@@ -10,14 +10,14 @@ int main(int argc, char **argv) {
         default: toReturn = toReturn*5; break;
 #endif
 #ifndef B
-		default: toReturn = toReturn*(-5); break;
+		default: toReturn = toReturn*20; break;
 #endif
 #endif
 	
 
 #ifndef A
 		case 2: toReturn = toReturn*3;
-		default: toReturn = toReturn*(-2); break;
+		default: toReturn = toReturn*30; break;
 #endif 
     }
 	return toReturn;
