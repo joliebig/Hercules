@@ -1,3 +1,4 @@
+// #include <stdio.h>
 /*
 Test case for SQLite bug with th3 bugs/2010-03-05a.test cfg/64k.cfg
 
@@ -89,5 +90,6 @@ int main(int argc, char **argv) {
             toReturn += 20;
         }
         #endif
-    return 3000;
+    //printf("Return: %d", toReturn);
+    return toReturn;
 }
