@@ -17,6 +17,7 @@ project/boot/
 project/plugins/project/
 debugsource.txt
 tokenstream.txt
+*_ifdeftoif.c
 *.log
 *.dbg
 *.i
@@ -32,6 +33,7 @@ tokenstream.txt
 *.interface
 *.dbginterface
 *.id2i
+*.o
 .idea
 sparse
 systems
