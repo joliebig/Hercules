@@ -1181,6 +1181,90 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
+    def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
+        new File(singleFilePath).mkdirs()
+        val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
+        val analyseString = "++Analyse: " + file.getName + "++"
+        print(analyseString)
+        for (i <- (analyseString.size / 4) until 15) {
+            print("\t")
+        }
+        val startParsingAndTypeChecking = System.currentTimeMillis()
+        val ast = i.prepareASTforIfdef(i.getAstFromFile(file))
+        if (ast == null) assert(false, "Could not parse input file " + file.toPath)
+        val source_ast = prepareAST(ast)
+        val ts = getTypeSystem(source_ast)
+        //val env = createASTEnv(source_ast)
+        ts.typecheckTranslationUnit(source_ast)
+        val defUseMap = ts.getDeclUseMap
+        val useDefMap = ts.getUseDeclMap
+        val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
+        print("--Parsed--")
+
+        if (!i.checkAstSilent(source_ast)) {
+            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
+            return (0, TranslationUnit(List()))
+        }
+
+        val startTransformation = System.currentTimeMillis()
+        val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
+        val timeToTransform = System.currentTimeMillis() - startTransformation
+        print("\t--Transformed--")
+        //println("\n" + PrettyPrinter.print(new_ast._1))
+
+        val startPrettyPrinting = System.currentTimeMillis()
+        PrettyPrinter.printD(new_ast._1, singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+        val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
+        print("\t--Printed--\n")
+        if (writeAst) {
+            writeToTextFile(fileNameWithoutExtension ++ "_ast.txt", source_ast.toString())
+        }
+
+        if (makeAnalysis) {
+            //if (!(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).exists) {
+            PrettyPrinter.printD(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
+            //}
+            /*val linesOfCodeBefore = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).getLines().size
+            val linesOfCodeAfter = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".ifdeftoif")).getLines().size
+            val codeDifference = computeDifference(linesOfCodeBefore, linesOfCodeAfter)
+            val csvBeginning = file.getName() + "," + linesOfCodeBefore + "," + linesOfCodeAfter + "," + codeDifference + ","*/
+
+
+            //val csvEntry = i.createCsvEntry(source_ast, new_ast._1, fileNameWithoutExtension, timeToParseAndTypeCheck, timeToTransform)
+            writeToTextFile(singleFilePath ++ fileNameWithoutExtension ++ ".csv", i.getCSVHeader + new_ast._2)
+            val resultFile = new File(singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+            val result_ast = i.getAstFromFile(resultFile)
+
+            // new_ast._1 is the generated ast
+            // result_ast is the ast parsed from the generated file
+            // 1. is the generated ast ok?
+            val wellTypedAST = i.checkAst(new_ast._1)
+            if (wellTypedAST) {
+                println("\t--TypeCheck: " + true + "--\n")
+            } else {
+                println("\t--TypeCheck: " + false + "--\n")
+            }
+            assert(wellTypedAST, "generated AST is not well typed")
+
+            // 2. is the generated file well typed?
+            println(PrettyPrinter.print(result_ast))
+            val wellTypedFile = i.checkAst(result_ast)
+            assert(wellTypedFile, "generated file is not well typed or could not be parsed")
+            // 3. does it still contain #if statements?
+            val containsIfdef = i.hasVariableNodes(result_ast)
+            val fileContent = Source.fromFile(resultFile).getLines().mkString("\n")
+            assert(!containsIfdef,
+                "generated file contains #if statements")
+            // return number of nodes in generated AST
+
+            // everything should be ok
+            //println(fileContent)
+            (new_ast._2.split(",")(3).toInt, new_ast._1)
+        } else {
+            (0, TranslationUnit(List()))
+        }
+    }
+
     @Test def test_alex_14() {
         val file = new File(ifdeftoifTestPath + "14.c")
         println(i.getAstFromFile(file))
@@ -1328,6 +1412,25 @@ static const char * const azCompileOpt[] = {
         assert(testMultipleFileSemantics(file, enabledTuples, enabledFeatures))
     }
 
+    @Test def switch_case_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
+
+        val disabledTuples = List((0, 1), (1, 23), (2, 13), (3, 4), (4, 30))
+        assert(testMultipleFileSemantics(file, disabledTuples))
+
+        val aFeatures = featureNameToFExprSet(List("a"))
+        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, 30))
+        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
+
+        val bFeatures = featureNameToFExprSet(List("b"))
+        val bTuples = List((0, 1), (1, 83), (2, 43), (3, 4), (4, 7))
+        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
+
+        val abFeatures = featureNameToFExprSet(List("a", "b"))
+        val abTuples = List((0, 1), (1, 19), (2, 11), (3, 4), (4, 7))
+        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+    }
+
     def featureNameToFExprSet(featureNames: List[String]): Set[SingleFeatureExpr] = {
         featureNames.map(x => FeatureExprFactory.createDefinedExternal(x.toUpperCase)).toSet
     }
@@ -1413,25 +1516,6 @@ static const char * const azCompileOpt[] = {
         }
     }
 
-    @Test def switch_case_2() {
-        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
-
-        val disabledTuples = List((0, 1), (1, 23), (2, 13), (3, 4), (4, 30))
-        assert(testMultipleFileSemantics(file, disabledTuples))
-
-        val aFeatures = featureNameToFExprSet(List("a"))
-        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, 30))
-        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
-
-        val bFeatures = featureNameToFExprSet(List("b"))
-        val bTuples = List((0, 1), (1, 83), (2, 43), (3, 4), (4, 7))
-        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
-
-        val abFeatures = featureNameToFExprSet(List("a", "b"))
-        val abTuples = List((0, 1), (1, 19), (2, 11), (3, 4), (4, 7))
-        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
-    }
-
     @Test def switch_case_default_2() {
         val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
 
@@ -1453,26 +1537,7 @@ static const char * const azCompileOpt[] = {
 
     @Test def switch_case_default_3() {
         val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
-
-        val disabledTuples = List((0, 1), (1, 180), (2, 90), (3, 30))
-        assert(testMultipleFileSemantics(file, disabledTuples))
-
-        val aFeatures = featureNameToFExprSet(List("a"))
-        val aTuples = List((0, 1), (1, 40), (2, 20), (3, 20))
-        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
-
-        val bFeatures = featureNameToFExprSet(List("b"))
-        val bTuples = List((0, 1), (1, 180), (2, 90), (3, 30))
-        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
-
-        val abFeatures = featureNameToFExprSet(List("a", "b"))
-        val abTuples = List((0, 1), (1, 10), (2, 5), (3, 5))
-        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
-    }
-
-    @Test def variable_condition_test_1() {
-        val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
-        assert(testFileSemanticsComplete(file, List((0))))
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
     }
 
     def testFileSemanticsComplete(file: File, inputs: List[Int], featureModel: FeatureModel = FeatureExprFactory.empty): Boolean = {
@@ -1502,7 +1567,7 @@ static const char * const azCompileOpt[] = {
 
         val startTransformation = System.currentTimeMillis()
         val new_ast = i.testAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
-        val gccParams = new_ast._2.map(x => (x, x.map(y => {
+        val testTriple = new_ast._2.map(x => (x, x.map(y => {
             y match {
                 case (fExpr, true) =>
                     "-D " + fExpr.feature
@@ -1533,7 +1598,7 @@ static const char * const azCompileOpt[] = {
         var testSuccessful = true
 
         for (input <- inputs) {
-            for (param <- gccParams) {
+            for (param <- testTriple) {
                 // new_ast._1 is the generated ast
                 // can we compile (gcc) and execute?
                 // compile
@@ -1567,13 +1632,13 @@ static const char * const azCompileOpt[] = {
 
                 // check if binary execution return value was the expected one
                 if (id2iExecExitVal != originalExitVal) {
-                    println("Using configuration \t-| " + configuration + " |- \ttest fails for input value: " + input + ". Original returns: (" + originalExitVal + "), ifdeftoif returns (" + id2iExecExitVal + ")")
+                    println("Using configuration \t-| " + configuration + " |-   \ttest fails for input value: " + input + ". Original returns: (" + originalExitVal + "), ifdeftoif returns (" + id2iExecExitVal + ")")
                     testSuccessful = false
                 } else {
                     println("Using configuration \t-| " + configuration + " |-   \ttest successful for input value: " + input)
                 }
             }
-            println("\n")
+            println("")
         }
         var proc = sys.process.stringToProcess("rm -f ifdeftoif_test.o").run
         if (proc.exitValue() < 0) {
@@ -1584,6 +1649,11 @@ static const char * const azCompileOpt[] = {
             println("Could not remove generated binary " + file)
         }
         return testSuccessful
+    }
+
+    @Test def variable_condition_test_1() {
+        val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
+        assert(testFileSemanticsComplete(file, List((0))))
     }
 
     @Ignore def test_opt_flags() {
@@ -1667,100 +1737,6 @@ static const char * const azCompileOpt[] = {
     @Ignore def test_ar_pi() {
         val file = new File(busyBoxPath + "archival/ar.pi")
         testFile(file)
-    }
-
-    def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
-        new File(singleFilePath).mkdirs()
-        val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
-        val analyseString = "++Analyse: " + file.getName + "++"
-        print(analyseString)
-        for (i <- (analyseString.size / 4) until 15) {
-            print("\t")
-        }
-        val startParsingAndTypeChecking = System.currentTimeMillis()
-        val ast = i.prepareASTforIfdef(i.getAstFromFile(file))
-        if (ast == null) assert(false, "Could not parse input file " + file.toPath)
-        val source_ast = prepareAST(ast)
-        val ts = getTypeSystem(source_ast)
-        //val env = createASTEnv(source_ast)
-        ts.typecheckTranslationUnit(source_ast)
-        val defUseMap = ts.getDeclUseMap
-        val useDefMap = ts.getUseDeclMap
-        val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
-        print("--Parsed--")
-
-        if (!i.checkAstSilent(source_ast)) {
-            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
-            return (0, TranslationUnit(List()))
-        }
-
-        val startTransformation = System.currentTimeMillis()
-        val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
-        val timeToTransform = System.currentTimeMillis() - startTransformation
-        print("\t--Transformed--")
-        //println("\n" + PrettyPrinter.print(new_ast._1))
-
-        val startPrettyPrinting = System.currentTimeMillis()
-        PrettyPrinter.printD(new_ast._1, singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
-        val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
-        print("\t--Printed--\n")
-        if (writeAst) {
-            writeToTextFile(fileNameWithoutExtension ++ "_ast.txt", source_ast.toString())
-        }
-
-        if (makeAnalysis) {
-            //if (!(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).exists) {
-            PrettyPrinter.printD(source_ast, singleFilePath ++ fileNameWithoutExtension ++ ".src")
-            //}
-            /*val linesOfCodeBefore = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".src")).getLines().size
-            val linesOfCodeAfter = Source.fromFile(new File(singleFilePath ++ fileNameWithoutExtension ++ ".ifdeftoif")).getLines().size
-            val codeDifference = computeDifference(linesOfCodeBefore, linesOfCodeAfter)
-            val csvBeginning = file.getName() + "," + linesOfCodeBefore + "," + linesOfCodeAfter + "," + codeDifference + ","*/
-
-
-            //val csvEntry = i.createCsvEntry(source_ast, new_ast._1, fileNameWithoutExtension, timeToParseAndTypeCheck, timeToTransform)
-            writeToTextFile(singleFilePath ++ fileNameWithoutExtension ++ ".csv", i.getCSVHeader + new_ast._2)
-            val resultFile = new File(singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
-            val result_ast = i.getAstFromFile(resultFile)
-
-            // new_ast._1 is the generated ast
-            // result_ast is the ast parsed from the generated file
-            // 1. is the generated ast ok?
-            val wellTypedAST = i.checkAst(new_ast._1)
-            if (wellTypedAST) {
-                println("\t--TypeCheck: " + true + "--\n")
-            } else {
-                println("\t--TypeCheck: " + false + "--\n")
-            }
-            assert(wellTypedAST, "generated AST is not well typed")
-
-            // 2. is the generated file well typed?
-            println(PrettyPrinter.print(result_ast))
-            val wellTypedFile = i.checkAst(result_ast)
-            assert(wellTypedFile, "generated file is not well typed or could not be parsed")
-            // 3. does it still contain #if statements?
-            val containsIfdef = i.hasVariableNodes(result_ast)
-            val fileContent = Source.fromFile(resultFile).getLines().mkString("\n")
-            assert(!containsIfdef,
-                "generated file contains #if statements")
-            // return number of nodes in generated AST
-
-            // everything should be ok
-            //println(fileContent)
-            (new_ast._2.split(",")(3).toInt, new_ast._1)
-        } else {
-            (0, TranslationUnit(List()))
-        }
-    }
-
-    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
-        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
-    }
-
-    private def writeToTextFile(name: String, content: String) {
-        val fw = new FileWriter(name)
-        fw.write(content)
-        fw.close()
     }
 
     @Ignore def test_file() {
@@ -1942,16 +1918,6 @@ static const char * const azCompileOpt[] = {
     }""")
         println(source_ast)
         println(testAst(source_ast))
-    }
-
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
 
     @Ignore def test_if_choice2() {
@@ -2145,6 +2111,16 @@ static const char * const azCompileOpt[] = {
             """)
         println(testAst(source_ast2))
         println(source_ast2)
+    }
+
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
 
     @Ignore def function_test() {
@@ -2526,6 +2502,12 @@ static const char * const azCompileOpt[] = {
         writeToTextFile(path ++ "type_check.csv", csvHeader + csvEntries)
     }
 
+    private def writeToTextFile(name: String, content: String) {
+        val fw = new FileWriter(name)
+        fw.write(content)
+        fw.close()
+    }
+
     private def compareTypeChecking(file: File): Tuple2[Long, Long] = {
         val source_ast = i.getAstFromFile(file)
         val defuses = getDefUse(source_ast)
@@ -2544,6 +2526,10 @@ static const char * const azCompileOpt[] = {
         print("TypeCheck Result: \t\t" + typeCheckResultDuration + "\n\n")
 
         (typeCheckSourceDuration, typeCheckResultDuration)
+    }
+
+    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
+        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
     }
 
     private def getDefUse(ast: TranslationUnit): (IdentityIdHashMap, IdentityIdHashMap) = {
