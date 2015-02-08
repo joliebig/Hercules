@@ -396,6 +396,36 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
+     * assigning selection states to features. The feature selection states are read from the given .config file path.
+     */
+    def writeExternIfdeftoIfStructT(assignments: List[(SingleFeatureExpr, Boolean)], defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
+        val structDeclaration = Opt(trueF, getOptionStruct(featureExpressions))
+        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+        val initFunction = Opt(trueF, getInitFunctionT(assignments))
+
+        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+    }
+
+    /**
+     * Takes a list of tuples of SingleFeatureExpr and Boolean to return an init function which
+     * assigns values to the struct members of the ifdeftoif config struct according to the feature selection states
+     * from the given boolean values.
+     * @return
+     */
+    private def getInitFunctionT(assignments: List[(SingleFeatureExpr, Boolean)]): FunctionDef = {
+        val exprStmts = assignments.map(x => {
+            x match {
+                case (fExpr, true) =>
+                    featureToAssignment(fExpr.feature, Constant("1"))
+                case (fExpr, false) =>
+                    featureToAssignment(fExpr.feature, Constant("0"))
+            }
+        })
+        FunctionDef(List(Opt(trueF, VoidSpecifier())), AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))), List(), CompoundStatement(exprStmts))
+    }
+
+    /**
      * Function to lift/step up variability to the next parental variability node (Opt[_] or Conditional[_]).
      * This should simplify the transformation of #ifdef-to-if a lot because it provides a general pattern for
      * code duplication required as a result of insufficient transformation capabilities of low-level #ifdefs to
@@ -709,6 +739,22 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
+    def printWithInclude(ast: AST, path: String) = {
+        PrettyPrinter.printD(ast, path, createIncludeDirective(externOptionStructPath))
+    }
+
+    /**
+     * Creates an #include directive for a header file of the "own" program, i.e., #include "path".
+     * Does not create an include for system header files!
+     */
+    private def createIncludeDirective(path: String): String = {
+        if (!path.isEmpty) {
+            "#include \"" + path + "\"\n"
+        } else {
+            ""
+        }
+    }
+
     /**
      * Transforms identifiers inside elements where the variant number exceeds the computation threshold if they can be
      * assigned to exactly one context.
@@ -901,6 +947,28 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
         val csvEntry = createCsvEntry(tunit, result, "unnamed", parseTime, transformTime, featuresInAst)
         (TranslationUnit(getInitialTranslationUnit(featureExpressions, enabledFeatures).defs ++ result.asInstanceOf[TranslationUnit].defs), csvEntry)
+    }
+
+    /**
+     * Runs #ifdef to if transformation on given translation unit and returns a set of feature names.
+     */
+    def testAst(tunit: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap,
+                parseTime: Long, enabledFeatures: Set[SingleFeatureExpr] = Set(), featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty): (TranslationUnit, List[List[(SingleFeatureExpr, Boolean)]]) = {
+        fm = featureModel
+        init(fm)
+        val tb = java.lang.management.ManagementFactory.getThreadMXBean
+
+        fillIdMap(tunit)
+        astEnv = createASTEnv(tunit)
+        featureExpressions = IfdeftoifUtils.getSingleFeatures(tunit)
+        defuse = decluse
+        usedef = usedecl
+        val time = tb.getCurrentThreadCpuTime
+        val result = transformRecursive(tunit, trueF, true)
+        val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
+
+        val csvEntry = createCsvEntry(tunit, result, "unnamed", parseTime, transformTime, featuresInAst)
+        (result.asInstanceOf[TranslationUnit], getFeatureCombinationTuples(featureExpressions))
     }
 
     /**
@@ -2249,6 +2317,20 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Creates all possible 2 power n combinations for a list of n raw (single) feature expressions. List(def(x64), def(x86))
+     * becomes List(def(x64)&def(x86),!def(x64)&def(x86),def(x64)&!def(x86),!def(x64)&!def(x86).
+     */
+    private def getFeatureCombinationTuples(fList: Set[SingleFeatureExpr]): List[List[(SingleFeatureExpr, Boolean)]] = {
+        if (fList.size == 0) {
+            List()
+        } else {
+            fList.tail.foldLeft(List(List((fList.head, true)), List((fList.head, false))))((curRes, curFExpr) => {
+                curRes.flatMap(x => List((curFExpr, false) :: x, (curFExpr, true) :: x))
+            })
+        }
+    }
+
+    /**
      * Combines if statements with the same condition.
      */
     private def combineIfStatements(ast: TranslationUnit): TranslationUnit = {
@@ -2788,18 +2870,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private def getSingleFeaturesFromList(lst: List[FeatureExpr]): Set[SingleFeatureExpr] = {
         var featureSet: Set[FeatureExpr] = lst.toSet
         featureSet.flatMap(x => x.collectDistinctFeatureObjects)
-    }
-
-    /**
-     * Creates an #include directive for a header file of the "own" program, i.e., #include "path".
-     * Does not create an include for system header files!
-     */
-    private def createIncludeDirective(path: String): String = {
-        if (!path.isEmpty) {
-            "#include \"" + path + "\"\n"
-        } else {
-            ""
-        }
     }
 
     /**

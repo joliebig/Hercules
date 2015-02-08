@@ -274,16 +274,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         println(testAst(source_ast))
     }
 
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
-    }
-
     @Ignore def test_switch2 {
         val source_ast = getAST( """
       void foo_02(int a) {
@@ -1338,25 +1328,6 @@ static const char * const azCompileOpt[] = {
         assert(testMultipleFileSemantics(file, enabledTuples, enabledFeatures))
     }
 
-    @Test def switch_case_2() {
-        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
-
-        val disabledTuples = List((0, 1), (1, 23), (2, 13), (3, 4), (4, 30))
-        assert(testMultipleFileSemantics(file, disabledTuples))
-
-        val aFeatures = featureNameToFExprSet(List("a"))
-        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, 30))
-        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
-
-        val bFeatures = featureNameToFExprSet(List("b"))
-        val bTuples = List((0, 1), (1, 83), (2, 43), (3, 4), (4, 7))
-        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
-
-        val abFeatures = featureNameToFExprSet(List("a", "b"))
-        val abTuples = List((0, 1), (1, 19), (2, 11), (3, 4), (4, 7))
-        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
-    }
-
     def featureNameToFExprSet(featureNames: List[String]): Set[SingleFeatureExpr] = {
         featureNames.map(x => FeatureExprFactory.createDefinedExternal(x.toUpperCase)).toSet
     }
@@ -1442,6 +1413,25 @@ static const char * const azCompileOpt[] = {
         }
     }
 
+    @Test def switch_case_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
+
+        val disabledTuples = List((0, 1), (1, 23), (2, 13), (3, 4), (4, 30))
+        assert(testMultipleFileSemantics(file, disabledTuples))
+
+        val aFeatures = featureNameToFExprSet(List("a"))
+        val aTuples = List((0, 1), (1, 7), (2, 5), (3, 4), (4, 30))
+        assert(testMultipleFileSemantics(file, aTuples, aFeatures))
+
+        val bFeatures = featureNameToFExprSet(List("b"))
+        val bTuples = List((0, 1), (1, 83), (2, 43), (3, 4), (4, 7))
+        assert(testMultipleFileSemantics(file, bTuples, bFeatures))
+
+        val abFeatures = featureNameToFExprSet(List("a", "b"))
+        val abTuples = List((0, 1), (1, 19), (2, 11), (3, 4), (4, 7))
+        assert(testMultipleFileSemantics(file, abTuples, abFeatures))
+    }
+
     @Test def switch_case_default_2() {
         val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
 
@@ -1482,30 +1472,118 @@ static const char * const azCompileOpt[] = {
 
     @Test def variable_condition_test_1() {
         val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
-        // input values do not matter in this test
-        var abFeatures: Set[SingleFeatureExpr] = Set()
-        assert(testMultipleFileSemantics(file, List((0, 1)), abFeatures))
+        assert(testFileSemanticsComplete(file, List((0))))
+    }
 
-        abFeatures = featureNameToFExprSet(List("IFDEF_VAR"))
-        assert(testMultipleFileSemantics(file, List((0, 12)), abFeatures))
+    def testFileSemanticsComplete(file: File, inputs: List[Int], featureModel: FeatureModel = FeatureExprFactory.empty): Boolean = {
+        new File(singleFilePath).mkdirs()
+        val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
+        val analyseString = "++Transforming: " + file.getName + "++"
+        print(analyseString)
+        for (i <- (analyseString.size / 4) until 15) {
+            print("\t")
+        }
+        val startParsingAndTypeChecking = System.currentTimeMillis()
+        val ast = i.prepareASTforIfdef(i.getAstFromFile(file))
+        if (ast == null) assert(false, "Could not parse input file " + file.toPath)
+        val source_ast = prepareAST(ast)
+        val ts = getTypeSystem(source_ast)
+        //val env = createASTEnv(source_ast)
+        ts.typecheckTranslationUnit(source_ast)
+        val defUseMap = ts.getDeclUseMap
+        val useDefMap = ts.getUseDeclMap
+        val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
+        print("--Parsed--")
 
-        abFeatures = featureNameToFExprSet(List("IFDEF_VAR_2"))
-        assert(testMultipleFileSemantics(file, List((0, 31)), abFeatures))
+        if (!i.checkAstSilent(source_ast)) {
+            println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
+            return null.asInstanceOf[Boolean]
+        }
 
-        abFeatures = featureNameToFExprSet(List("ELSE"))
-        assert(testMultipleFileSemantics(file, List((0, 43)), abFeatures))
+        val startTransformation = System.currentTimeMillis()
+        val new_ast = i.testAst(source_ast, defUseMap, useDefMap, timeToParseAndTypeCheck)
+        val gccParams = new_ast._2.map(x => (x, x.map(y => {
+            y match {
+                case (fExpr, true) =>
+                    "-D " + fExpr.feature
+                case (fExpr, false) =>
+                    "-U " + fExpr.feature
+            }
+        }).mkString(" "), x.map(y => {
+            y match {
+                case (fExpr, true) =>
+                    fExpr
+                case (fExpr, false) =>
+                    fExpr.not()
+            }
+        }).foldLeft(FeatureExprFactory.True)((fst, snd) => fst.and(snd))))
 
-        abFeatures = featureNameToFExprSet(List("IFDEF_VAR", "IFDEF_VAR_2"))
-        assert(testMultipleFileSemantics(file, List((0, 12)), abFeatures))
+        val timeToTransform = System.currentTimeMillis() - startTransformation
+        print("\t--Transformed--\n")
 
-        abFeatures = featureNameToFExprSet(List("IFDEF_VAR", "ELSE"))
-        assert(testMultipleFileSemantics(file, List((0, 12)), abFeatures))
+        // println("\n" + PrettyPrinter.print(new_ast._1) + "\n\n")
 
-        abFeatures = featureNameToFExprSet(List("IFDEF_VAR_2", "ELSE"))
-        assert(testMultipleFileSemantics(file, List((0, 53)), abFeatures))
+        val startPrettyPrinting = System.currentTimeMillis()
+        val ifdeftoif_File = new File(singleFilePath ++ fileNameWithoutExtension ++ "_ifdeftoif.c")
+        i.printWithInclude(new_ast._1, ifdeftoif_File.getAbsolutePath)
+        val timeToPrettyPrint = System.currentTimeMillis() - startPrettyPrinting
+        //print("\t--Printed--\n")
 
-        abFeatures = featureNameToFExprSet(List("IFDEF_VAR", "IFDEF_VAR_2", "ELSE"))
-        assert(testMultipleFileSemantics(file, List((0, 12)), abFeatures))
+
+        var testSuccessful = true
+
+        for (input <- inputs) {
+            for (param <- gccParams) {
+                // new_ast._1 is the generated ast
+                // can we compile (gcc) and execute?
+                // compile
+                val assignments = param._1
+                val gccOpts = param._2
+                val configuration = param._3
+
+                // IFDEFTOIF EXECUTION
+                // generate ifdeftoif feature assignment struct
+                i.writeExternIfdeftoIfStructT(assignments)
+                var proc = sys.process.stringToProcess("gcc " + ifdeftoif_File + "  -o ifdeftoif_test.o").run
+                if (proc.exitValue() != 0) {
+                    // blocks until command is finished
+                    println("gcc failed on ifdef")
+                    (-1)
+                }
+                // execute ifdeftoif binary
+                proc = sys.process.stringToProcess("./ifdeftoif_test.o " + input).run
+                val id2iExecExitVal = proc.exitValue()
+
+                // ORIGINAL EXECUTION
+                proc = sys.process.stringToProcess("gcc " + file + " " + gccOpts + " -o test.o").run
+                if (proc.exitValue() != 0) {
+                    // blocks until command is finished
+                    println("gcc failed on original")
+                    (-1)
+                }
+                // execute binary
+                proc = sys.process.stringToProcess("./test.o " + input).run
+                val originalExitVal = proc.exitValue()
+
+                // check if binary execution return value was the expected one
+                if (id2iExecExitVal != originalExitVal) {
+                    println("Using configuration \t-| " + configuration + " |- \ttest fails for input value: " + input + ". Original returns: (" + originalExitVal + "), ifdeftoif returns (" + id2iExecExitVal + ")")
+                    testSuccessful = false
+                } else {
+                    println("Using configuration \t-| " + configuration + " |-   \ttest successful for input value: " + input)
+                }
+            }
+            println("\n")
+        }
+        var proc = sys.process.stringToProcess("rm -f ifdeftoif_test.o").run
+        if (proc.exitValue() < 0) {
+            println("Could not remove generated binary " + ifdeftoif_File)
+        }
+        proc = sys.process.stringToProcess("rm -f test.o").run
+        if (proc.exitValue() < 0) {
+            println("Could not remove generated binary " + file)
+        }
+        return testSuccessful
     }
 
     @Ignore def test_opt_flags() {
@@ -1589,111 +1667,6 @@ static const char * const azCompileOpt[] = {
     @Ignore def test_ar_pi() {
         val file = new File(busyBoxPath + "archival/ar.pi")
         testFile(file)
-    }
-
-    @Ignore def test_file() {
-        val file = new File(busyBoxPath + "archival/rpm.pi")
-        testFile(file)
-    }
-
-    @Ignore def test_tar_pi() {
-        val file = new File(busyBoxPath + "archival/tar.pi")
-        testFile(file)
-    }
-
-    @Test def single_busybox_file_test() {
-        val filename = "touch"
-        transformSingleFile(filename, busyBoxPath)
-    }
-
-    private def transformSingleFile(filename: String, directory: String) {
-        var foundFile = false
-        val dirToAnalyse = new File(directory)
-
-        def transformPiFiles(dirToAnalyse: File) {
-            if (!foundFile) {
-                // retrieve all pi from dir first
-                if (dirToAnalyse.isDirectory) {
-                    val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
-                        def accept(dir: File, file: String): Boolean =
-                            file.equals(filename + ".pi")
-                    })
-                    val dirs = dirToAnalyse.listFiles(new FilenameFilter {
-                        def accept(dir: File, file: String) = dir.isDirectory
-                    })
-                    if (!piFiles.isEmpty) {
-                        foundFile = true
-                        testFile(piFiles.head)
-                    } else {
-                        for (dir <- dirs) {
-                            transformPiFiles(dir)
-                        }
-                    }
-
-                }
-            }
-        }
-        if (dirToAnalyse.exists()) {
-            new File(path).mkdirs()
-            if (!checkForExistingFiles || !(new File(path ++ "statistics.csv").exists)) {
-                writeToFile(path ++ "statistics.csv", i.getCSVHeader)
-            }
-
-            transformPiFiles(dirToAnalyse)
-        }
-    }
-
-    def writeToFile(fileName: String, data: String) =
-        using(new FileWriter(fileName)) {
-            fileWriter => fileWriter.write(data)
-        }
-
-    /**
-     * Used for reading/writing to database, files, etc.
-     * Code From the book "Beginning Scala"
-     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
-     */
-    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
-        try {
-            f(param)
-        } finally {
-            param.close()
-        }
-
-    @Ignore def busybox_file_tests() {
-        val fs = File.separator
-        val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "correct_password.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "lineedit.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "procps.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "getty.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "passwd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "sulogin.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "brctl.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "httpd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ifconfig.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "inetd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ip.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "nc.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "ps.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "top.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "logread.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "syslogd_and_logger.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fbset.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fdisk.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fsck_minix.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mkfs_vfat.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mount.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "telnetd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "tftp.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "common.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "dhcpc.pi"))
-        val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
-            busyBoxPath + fs + "busybox" + fs + "featureModel"))
-        files.foreach(x => {
-            testFile(x, featureModel = busyboxFM)
-            println("\n")
-        })
     }
 
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
@@ -1790,6 +1763,94 @@ static const char * const azCompileOpt[] = {
         fw.close()
     }
 
+    @Ignore def test_file() {
+        val file = new File(busyBoxPath + "archival/rpm.pi")
+        testFile(file)
+    }
+
+    @Ignore def test_tar_pi() {
+        val file = new File(busyBoxPath + "archival/tar.pi")
+        testFile(file)
+    }
+
+    @Test def single_busybox_file_test() {
+        val filename = "touch"
+        transformSingleFile(filename, busyBoxPath)
+    }
+
+    private def transformSingleFile(filename: String, directory: String) {
+        var foundFile = false
+        val dirToAnalyse = new File(directory)
+
+        def transformPiFiles(dirToAnalyse: File) {
+            if (!foundFile) {
+                // retrieve all pi from dir first
+                if (dirToAnalyse.isDirectory) {
+                    val piFiles = dirToAnalyse.listFiles(new FilenameFilter {
+                        def accept(dir: File, file: String): Boolean =
+                            file.equals(filename + ".pi")
+                    })
+                    val dirs = dirToAnalyse.listFiles(new FilenameFilter {
+                        def accept(dir: File, file: String) = dir.isDirectory
+                    })
+                    if (!piFiles.isEmpty) {
+                        foundFile = true
+                        testFile(piFiles.head)
+                    } else {
+                        for (dir <- dirs) {
+                            transformPiFiles(dir)
+                        }
+                    }
+
+                }
+            }
+        }
+        if (dirToAnalyse.exists()) {
+            new File(path).mkdirs()
+            if (!checkForExistingFiles || !(new File(path ++ "statistics.csv").exists)) {
+                writeToFile(path ++ "statistics.csv", i.getCSVHeader)
+            }
+
+            transformPiFiles(dirToAnalyse)
+        }
+    }
+
+    @Ignore def busybox_file_tests() {
+        val fs = File.separator
+        val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "correct_password.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "lineedit.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "procps.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "getty.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "passwd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "sulogin.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "brctl.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "httpd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ifconfig.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "inetd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ip.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "nc.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "ps.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "top.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "logread.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "syslogd_and_logger.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fbset.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fdisk.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fsck_minix.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mkfs_vfat.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mount.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "telnetd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "tftp.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "common.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "dhcpc.pi"))
+        val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
+            busyBoxPath + fs + "busybox" + fs + "featureModel"))
+        files.foreach(x => {
+            testFile(x, featureModel = busyboxFM)
+            println("\n")
+        })
+    }
+
     @Ignore def test_bbunzip_pi() {
         val fs = File.separator
         val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
@@ -1881,6 +1942,16 @@ static const char * const azCompileOpt[] = {
     }""")
         println(source_ast)
         println(testAst(source_ast))
+    }
+
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
 
     @Ignore def test_if_choice2() {
@@ -2246,6 +2317,23 @@ static const char * const azCompileOpt[] = {
         }
         transformPiFiles(dirToAnalyse)
     }
+
+    def writeToFile(fileName: String, data: String) =
+        using(new FileWriter(fileName)) {
+            fileWriter => fileWriter.write(data)
+        }
+
+    /**
+     * Used for reading/writing to database, files, etc.
+     * Code From the book "Beginning Scala"
+     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
+     */
+    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
+        try {
+            f(param)
+        } finally {
+            param.close()
+        }
 
     private def runIfdefToIfOnPi(file: File, featureModel: FeatureModel = FeatureExprFactory.empty) {
         if (filesTransformed < filesToAnalysePerRun) {
