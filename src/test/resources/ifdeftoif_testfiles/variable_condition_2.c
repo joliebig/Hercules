@@ -21,14 +21,6 @@ int else_f =
 #endif
 ;
 
-int var_f =
-#if defined(IFDEF_VAR)
-1
-#else
-0
-#endif
-;
-
 int var_f2 =
 #if defined(IFDEF_VAR2)
 1
