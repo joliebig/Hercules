@@ -44,7 +44,7 @@ import scala.collection.mutable.ListBuffer
  * long _X64_foo() { return 0; }
  * int _NotX64_foo() { return 0; }
  */
-class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfStatisticsInterface with IOUtilities {
+class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfStatisticsInterface with IOUtilities with EnforceTreeHelper {
     private lazy val logger = LogManager.getLogger(this.getClass.getName)
     // Default configuration flag, can either be '0' or '1'
     val defaultValue = "0"
@@ -379,10 +379,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     List())))))
     }
 
-    def getFeatureName(name: String): String = {
-        featurePrefix + name.toLowerCase
-    }
-
     /**
      * Converts a list of StructDeclarations into a Declaration. Ex: List(int config_x64) -> struct ifdefoptions {int config_x64;} id2i;
      * @param structDeclList
@@ -423,6 +419,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         Opt(trueF,
             ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
                 PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
+    }
+
+    def getFeatureName(name: String): String = {
+        featurePrefix + name.toLowerCase
     }
 
     /**
@@ -1200,13 +1200,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             One(CompoundStatement(List(Opt(trueF, prepareASTforIfdefHelper(k, currentContext)))))
                     }
                 case c@Choice(ft, thenBranch, elseBranch) =>
-                    /*val choiceCtx = astEnv.featureExpr(c)
-                    if (!choiceCtx.equals(currentContext)) {
-                        System.err.println("ASTEnv feature and computed context feature don't match.")
-                    }*/
-                    val newChoiceFeature = fExprDiff(currentContext, ft)
-                    val thenFeature = currentContext.and(newChoiceFeature)
-                    val elseFeature = currentContext.and(newChoiceFeature.not())
+                    val choiceCtx = astEnv.featureExpr(c)
+                    val newChoiceFeature = fExprDiff(choiceCtx, ft)
+                    val thenFeature = choiceCtx.and(newChoiceFeature)
+                    val elseFeature = choiceCtx.and(newChoiceFeature.not())
                     val result = Choice(newChoiceFeature, prepareASTforIfdefHelper(thenBranch, thenFeature), prepareASTforIfdefHelper(elseBranch, elseFeature))
                     result
             })
