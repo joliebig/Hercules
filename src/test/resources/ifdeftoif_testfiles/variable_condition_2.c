@@ -1,18 +1,3 @@
-/*
-Test case for SQLite bug with th3 bugs/2010-03-05a.test cfg/64k.cfg
-
-Variable in elseif-condition is duplicated.
-Condition-check is not guarded by Hercules.
-
-Correct ifdeftoif code would be:
-                if( nOld==nNew ){
-                    ...
-                }else if( (! id2i.f_sqlite_default_memstatus) && _3778_sqlite3Config.bMemstat ){
-                    ...
-                }else if( (id2i.f_sqlite_default_memstatus) && _3777_sqlite3Config.bMemstat ){
-                    ...
-*/
-
 int else_f =
 #if defined(ELSE)
 1
@@ -57,10 +42,10 @@ int main(int argc, char **argv) {
     }
     #endif
 
-//  #if defined(ELSE)
+  #if defined(ELSE)
     else {
       toReturn += 100000;
     }
-//  #endif
+  #endif
     return toReturn;
 }
