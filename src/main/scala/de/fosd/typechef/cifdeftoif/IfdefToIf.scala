@@ -2066,7 +2066,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
                 val tmpDecl = Declaration(newDeclSpecs, init)
                 val features = computeFExpsForDuplication(tmpDecl, declarationFeature.and(curCtx), isTopLevel)
-                val isStruct = tmpDecl.declSpecs.exists(x => x.entry.isInstanceOf[StructOrUnionSpecifier] && x.entry.asInstanceOf[StructOrUnionSpecifier].enumerators.isDefined)
+
+                // Checks if declaration is a struct declaration with a name, structs with initializers but no struct name can't be split up
+                val isStruct = tmpDecl.declSpecs.exists(x => x.entry.isInstanceOf[StructOrUnionSpecifier] && x.entry.asInstanceOf[StructOrUnionSpecifier].enumerators.isDefined && x.entry.asInstanceOf[StructOrUnionSpecifier].id.isDefined)
                 val isStructWithInit = isStruct && tmpDecl.init.exists(x => x.entry.isInstanceOf[InitDeclaratorI] && x.entry.asInstanceOf[InitDeclaratorI].i.isDefined)
                 val specifierFeatures = computeFExpsForDuplication(tmpDecl.declSpecs, declarationFeature.and(curCtx), isTopLevel)
                 val specifierSingleFeatures = IfdeftoifUtils.getSingleFeaturesFromList(specifierFeatures)
@@ -2106,8 +2108,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     } else {
                         declarationWithoutInitResult = handleDeclarations(Opt(trueF, declarationWithoutInit), curCtx, isTopLevel)
                     }
-                    //val declarationInitResult = features.map(x => )
-                    //init.foreach(x => )
                     return declarationWithoutInitResult ++ handleDeclarations(Opt(trueF, newInitialization), curCtx, isTopLevel)
                 }
                 if ((features.isEmpty) && isTopLevel && !curCtx.and(optDeclaration.feature).equivalentTo(trueF, fm)) {
