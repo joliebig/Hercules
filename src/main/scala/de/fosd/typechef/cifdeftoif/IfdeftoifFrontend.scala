@@ -47,7 +47,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             if (!opt.featureConfig) {
                 val configPath = opt.getFeatureConfigFilename
                 i.writeExternIfdeftoIfStruct(configPath)
-                println("Created extern struct file, all features are initialized with default value '" + i.defaultValue + "' at: " + configPath)
+                println("Created extern struct file, all features are initialized with default value '" + i.defaultValue + "' at: " + configPath + "\n\n")
             }
         }
 
