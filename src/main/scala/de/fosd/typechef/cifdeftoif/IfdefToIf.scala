@@ -841,7 +841,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         // combine IfStatements
         new_ast = combineIfStatements(new_ast)
         val transformTime = (tb.getCurrentThreadCpuTime - time) / nstoms
-        println("Combined " + combineCounter + " times.")
+        // println("Combined " + combineCounter + " times.")
         var result_ast: TranslationUnit = new_ast
 
         var typecheck_ast: TranslationUnit = TranslationUnit(List())

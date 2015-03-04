@@ -75,6 +75,17 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         }
 
         var ast: TranslationUnit = null
+        if (opt.reuseAST && opt.parse && new File(opt.getSerializedTUnitFilename).exists()) {
+            println("loading AST.")
+            try {
+                ast = loadSerializedAST(opt.getSerializedTUnitFilename)
+                ast = prepareAST[TranslationUnit](ast)
+            } catch {
+                case e: Throwable => println(e.toString); e.printStackTrace(); ast = null
+            }
+            if (ast == null)
+                println("... failed reading AST\n")
+        }
         var ast_replaced: TranslationUnit = null
         val replacementDefintionsFile = new File("./ifdeftoif_replacements_parts/PreparedReplacementParts.txt")
 
@@ -94,7 +105,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                 val parserMain = new ParserMain(new CParser(parseFM))
                 ast = parserMain.parserMain(in, opt, fullFM)
                 ast = prepareAST[TranslationUnit](ast)
-                if (opt.ifdeftoif) {
+                if (opt.ifdeftoif && !opt.reuseAST) {
                     // preprocessing: replace situations with too much local variability (e.g. different string in each variant) with prepared replacements
                     if (replacementDefintionsFile.exists()) {
                         val (newAst, usedVariables) = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
@@ -143,7 +154,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
                     stopWatch.start("typechecking")
                     println("type checking")
-                    val typeCheckStatus = ts.checkAST()
+                    val typeCheckStatus = ts.checkASTSilent
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
                         if (typeCheckStatus) {
@@ -163,9 +174,9 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //logMessage=("Time for lexing(ms): " + (t2-t1) + "\nTime for parsing(ms): " + (t3-t2) + "\n"))
                             //ProductGeneration.estimateNumberOfVariants(ast, fullFM)
                             //val includeStructFilename = opt.getincludeStructFilename()
-                            if (replacementDefintionsFile.exists()) {
+                            if (replacementDefintionsFile.exists() && !opt.reuseAST) {
                                 ts = new CTypeSystemFrontend(ast_replaced, fullFM, opt) with CTypeCache with CDeclUse
-                                ts.checkAST()
+                                ts.checkASTSilent
                                 ast = ast_replaced
                             }
                             i.setSimpleSwitchTransformation(opt.simple_switch_transformation)
