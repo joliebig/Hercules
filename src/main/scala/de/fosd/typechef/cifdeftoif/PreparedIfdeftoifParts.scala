@@ -41,7 +41,8 @@ object PreparedIfdeftoifParts {
                 replacedFeatures ++= IfdeftoifUtils.getSingleFeatures(search)
             }
         }
-        println("did ast part replacement with " + (preparedPartsLists.size + preparedParts.size) + " prepared parts, replaced " + total_num_matches + " matches.")
+        if (total_num_matches > 0)
+            println("did ast part replacement with " + (preparedPartsLists.size + preparedParts.size) + " prepared parts, replaced " + total_num_matches + " matches.")
         return (ret, replacedFeatures)
     }
 
