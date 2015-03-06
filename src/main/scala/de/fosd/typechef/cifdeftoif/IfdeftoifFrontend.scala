@@ -47,7 +47,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             if (opt.ifdeftoif && !opt.featureConfig) {
                 val configPath = opt.getFeatureConfigFilename
                 i.writeExternIfdeftoIfStruct(configPath)
-                println("Created extern struct file, all features are initialized with default value '" + i.defaultValue + "' at: " + configPath + "\n\n")
+                println("Created extern struct file, all features are initialized with default value '" + i.defaultValue + "' at: " + configPath)
             }
         }
 
@@ -56,6 +56,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             i.writeExternIfdeftoIfStruct(configPath)
             println("Created extern struct file from configuration at: " + configPath)
         }
+        println("\n")
     }
 
     private def processFile(opt: IfdefToIfOptions) {
