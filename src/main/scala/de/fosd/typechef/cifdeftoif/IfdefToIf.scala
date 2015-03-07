@@ -264,7 +264,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private def getInitFunction(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = "", defaultConfiguration: Expr = defaultConfigurationParameter): FunctionDef = {
       var exprStmts: List[Opt[ExprStatement]] = List()
 
-      if (!featureConfigPath.isEmpty) {
+      if (!featureConfigPath.isEmpty && (new File(featureConfigPath)).exists()) {
         val featureConfigFile = new File(featureConfigPath)
         val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
 
@@ -315,13 +315,14 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
      * assigning selection states to features. The feature selection states are read from the given .config file path.
      */
-    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
+    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = ""): String = {
       val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
       val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
       val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
       val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
 
       PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+      externOptionStructPath
     }
 
     /**

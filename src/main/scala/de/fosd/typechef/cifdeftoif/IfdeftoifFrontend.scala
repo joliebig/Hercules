@@ -46,15 +46,13 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             processFile(opt)
             if (opt.ifdeftoif && !opt.featureConfig) {
                 val configPath = opt.getFeatureConfigFilename
-                i.writeExternIfdeftoIfStruct(configPath)
-                println("Created extern struct file, all features are initialized with default value '" + i.defaultValue + "' at: " + configPath)
+              println("Saved extern struct file to '" + i.writeExternIfdeftoIfStruct(configPath) + "', all features are initialized with default value '" + i.defaultValue + "'.")
             }
         }
 
         if (opt.featureConfig) {
             val configPath = opt.getFeatureConfigFilename
-            i.writeExternIfdeftoIfStruct(configPath)
-            println("Created extern struct file from configuration at: " + configPath)
+          println("Saved extern struct file to '" + i.writeExternIfdeftoIfStruct(configPath) + "', features are initialized with values from configuration at '" + configPath + "'.")
         }
         println("\n")
     }
@@ -112,8 +110,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                         val (newAst, usedVariables) = PreparedIfdeftoifParts.replaceInAST(ast, replacementDefintionsFile)
                         ast_replaced = i.prepareASTforIfdef(newAst)
                         i.loadAndUpdateFeatures(usedVariables)
-                    } else {
-                        println("Did not find file with replacement definitions: " + replacementDefintionsFile.getPath)
                     }
                     ast = i.prepareASTforIfdef(ast)
                 }
@@ -261,6 +257,19 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         fw.close()
     }
 
+  private def loadSerializedAST(filename: String): TranslationUnit = try {
+    val fr = new ObjectInputStream(new GZIPInputStream(new FileInputStream(filename))) {
+      override protected def resolveClass(desc: ObjectStreamClass) = {
+        /*println(desc);*/ super.resolveClass(desc)
+      }
+    }
+    val ast = fr.readObject().asInstanceOf[TranslationUnit]
+    fr.close()
+    ast
+  } catch {
+    case e: ObjectStreamException => System.err.println("failed loading serialized AST: " + e.getMessage); null
+  }
+
     private def writeInterface(ast: AST, fm: FeatureModel, opt: IfdefToIfOptions) {
         val ts = new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit], fm, opt) with CTypeCache with CDeclUse
         ts.checkAST()
@@ -272,19 +281,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         ts.writeInterface(interface, new File(opt.getInterfaceFilename))
         if (opt.writeDebugInterface)
             ts.debugInterface(interface, new File(opt.getDebugInterfaceFilename))
-    }
-
-    private def loadSerializedAST(filename: String): TranslationUnit = try {
-        val fr = new ObjectInputStream(new GZIPInputStream(new FileInputStream(filename))) {
-            override protected def resolveClass(desc: ObjectStreamClass) = {
-                /*println(desc);*/ super.resolveClass(desc)
-            }
-        }
-        val ast = fr.readObject().asInstanceOf[TranslationUnit]
-        fr.close()
-        ast
-    } catch {
-        case e: ObjectStreamException => System.err.println("failed loading serialized AST: " + e.getMessage); null
     }
 
     private class StopWatch {
@@ -299,11 +295,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             times = times + ((genId(), currentPeriod) -> lastTime)
             lastStart = now
             currentPeriod = period
-        }
-
-        private def genId(): Int = {
-            currentPeriodId += 1;
-            currentPeriodId
         }
 
         def get(period: String): Long = times.filter(v => v._1._2 == period).headOption.map(_._2).getOrElse(0)
@@ -323,6 +314,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
         private def measure(checkpoint: String) {
             times = times + ((genId(), checkpoint) -> System.currentTimeMillis())
+        }
+
+      private def genId(): Int = {
+        currentPeriodId += 1;
+        currentPeriodId
         }
     }
 }
