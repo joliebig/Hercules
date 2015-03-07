@@ -2140,17 +2140,18 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         result
                     }
                 } else {
-                    if (isExternDeclaration(optDeclaration) && isOptionalDeclaration(optDeclaration, curCtx)) {
+                  if (isExternDeclaration(optDeclaration)) {
+                    // && isOptionalDeclaration(optDeclaration, curCtx)) {
                         // Don't rename external declarations if they are only optional
                         val tmp = replaceOptAndId(tmpDecl, declarationFeature, functionContext)
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                         result
                     } else {
-                        if (isFunctionForwardDeclaration(tmpDecl.init) && !declarationFeature.equals(trueF)) {
-                            // Don't rename optional function forward declarations
-                            val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
-                            result
-                        } else {
+                    //                        if (isFunctionForwardDeclaration(tmpDecl.init) && !declarationFeature.equals(trueF)) {
+                    //                            // Don't rename optional function forward declarations
+                    //                            val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
+                    //                            result
+                    //                        } else {
                             val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature, functionContext), declarationFeature)
                             /*var tmp = replaceOptAndId(tmpDecl, declarationFeature)
                             / Skip renaming function forward declarations which are only optional
@@ -2159,7 +2160,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             }*/
                             val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                             result
-                        }
+                    //                        }
                     }
                 }
         }
