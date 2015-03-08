@@ -104,6 +104,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var isFirstRun = true
     // Data structure which maps definitions of variables to their usages
     private var defuse: IdentityIdHashMap = new IdentityIdHashMap(new IdentityHashMap())
+    private var defuseKeys: List[AnyRef] = List()
     // Data structure which maps usages of variables to their definition(s)
     private var usedef: IdentityIdHashMap = new IdentityIdHashMap(new IdentityHashMap())
     // Data structure which maps presence conditions to numbers used as prefixes in renamings
@@ -820,6 +821,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         // Set the feature model, declUseMap, useDeclMap, astEnv
         fm = featureModel
         defuse = decluse
+        defuseKeys = defuse.keySet.toArray().toList
         usedef = usedecl
 
         if (astEnv == null)
@@ -943,6 +945,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         astEnv = createASTEnv(tunit)
         featureExpressions = IfdeftoifUtils.getSingleFeatures(tunit)
         defuse = decluse
+        defuseKeys = defuse.keySet.toArray().toList
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
         val result = transformRecursive(tunit, trueF, true)
@@ -965,6 +968,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         astEnv = createASTEnv(tunit)
         featureExpressions = IfdeftoifUtils.getSingleFeatures(tunit)
         defuse = decluse
+        defuseKeys = defuse.keySet.toArray().toList
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
         val result = transformRecursive(tunit, trueF, true)
@@ -2141,27 +2145,21 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         result
                     }
                 } else {
-                  if (isExternDeclaration(optDeclaration)) {
-                    // && isOptionalDeclaration(optDeclaration, curCtx)) {
+                    if (isExternDeclaration(optDeclaration) && isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
                         // Don't rename external declarations if they are only optional
                         val tmp = replaceOptAndId(tmpDecl, declarationFeature, functionContext)
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                         result
                     } else {
-                    //                        if (isFunctionForwardDeclaration(tmpDecl.init) && !declarationFeature.equals(trueF)) {
-                    //                            // Don't rename optional function forward declarations
-                    //                            val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
-                    //                            result
-                    //                        } else {
+                        if (isFunctionForwardDeclaration(tmpDecl.init) && !declarationFeature.equals(trueF) && declNameOccursOnce(optDeclaration)) {
+                            // Don't rename optional function forward declarations
+                            val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
+                            result
+                        } else {
                             val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature, functionContext), declarationFeature)
-                            /*var tmp = replaceOptAndId(tmpDecl, declarationFeature)
-                            / Skip renaming function forward declarations which are only optional
-                            if (!isFunctionForwardDeclaration(init)) {
-                                tmp = convertId(tmp, declarationFeature)
-                            }*/
                             val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                             result
-                    //                        }
+                        }
                     }
                 }
         }
@@ -2182,6 +2180,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def isExternDeclaration2(optDeclaration: Opt[Declaration]): Boolean = {
         optDeclaration.entry.init.exists(x => x.entry.declarator.extensions.exists(y => y.entry.isInstanceOf[DeclIdentifierList] || y.entry.isInstanceOf[DeclParameterDeclList])) && optDeclaration.entry.declSpecs.exists(x => x.entry.isInstanceOf[ExternSpecifier])
+    }
+
+    /**
+     * Checks the declaration use map to see if there are multiple declarations with the same name.
+     */
+    def declNameOccursOnce(optDeclaration: Opt[Declaration]): Boolean = {
+        !optDeclaration.entry.init.exists(x => defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
     }
 
     /**
