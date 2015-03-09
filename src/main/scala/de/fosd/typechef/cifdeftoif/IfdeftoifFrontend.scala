@@ -182,9 +182,10 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             i.setParseFM(parseFM)
                             val defUseMap = ts.getDeclUseMap
                             val useDefMap = ts.getUseDeclMap
+                            val fwdDecls = ts.getFunctionFwdDecls
                             val fileName = i.basename(opt.getOutputStem())
                             val checkIfdefToIfResult = !opt.ifdeftoifnocheck
-                            val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
+                            val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fwdDecls, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
                             tuple._1 match {
                                 case None =>
                                     println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result !!")
@@ -297,6 +298,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             currentPeriod = period
         }
 
+        private def genId(): Int = {
+            currentPeriodId += 1;
+            currentPeriodId
+        }
+
         def get(period: String): Long = times.filter(v => v._1._2 == period).headOption.map(_._2).getOrElse(0)
 
         override def toString = {
@@ -314,11 +320,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
         private def measure(checkpoint: String) {
             times = times + ((genId(), checkpoint) -> System.currentTimeMillis())
-        }
-
-      private def genId(): Int = {
-        currentPeriodId += 1;
-        currentPeriodId
         }
     }
 }

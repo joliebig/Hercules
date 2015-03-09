@@ -105,6 +105,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Data structure which maps definitions of variables to their usages
     private var defuse: IdentityIdHashMap = new IdentityIdHashMap(new IdentityHashMap())
     private var defuseKeys: List[AnyRef] = List()
+    private var fwdDecls: List[AnyRef] = List()
     // Data structure which maps usages of variables to their definition(s)
     private var usedef: IdentityIdHashMap = new IdentityIdHashMap(new IdentityHashMap())
     // Data structure which maps presence conditions to numbers used as prefixes in renamings
@@ -255,6 +256,53 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Appends the featurePrefix to feature expressions.
+     */
+    def getFeatureName(fExpr: FeatureExpr): String = {
+        featurePrefix + fExpr.toString().toLowerCase
+    }
+
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given ast.
+     */
+    def loadAndUpdateFeatures(ast: TranslationUnit): Unit = {
+        loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
+    }
+
+    /**
+     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
+     * given feature expression set.
+     */
+    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]): Unit = {
+        featureExpressions ++= newFeatures
+        featuresInAst = featureExpressions.size
+        var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
+        if (new File(serializedFeaturePath).exists) {
+            val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
+            allFeatureExpressions = featureExpressions ++ loadedFeatures
+        } else {
+            new File(path).mkdirs()
+            allFeatureExpressions = featureExpressions
+        }
+        serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
+    }
+
+    /**
+     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
+     * assigning selection states to features. The feature selection states are read from the given .config file path.
+     */
+    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = ""): String = {
+        val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
+        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
+        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+        val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
+
+        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+        externOptionStructPath
+    }
+
+    /**
      * Takes a set of SingleFeatureExpr and a path to a feature configuration file and returns an init function which
      * assigns values to the struct members of the ifdeftoif config struct according to the feature selection states
      * from the given feature configuration file.
@@ -263,67 +311,32 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * @return
      */
     private def getInitFunction(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = "", defaultConfiguration: Expr = defaultConfigurationParameter): FunctionDef = {
-      var exprStmts: List[Opt[ExprStatement]] = List()
+        var exprStmts: List[Opt[ExprStatement]] = List()
 
-      if (!featureConfigPath.isEmpty && (new File(featureConfigPath)).exists()) {
-        val featureConfigFile = new File(featureConfigPath)
-        val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
+        if (!featureConfigPath.isEmpty && (new File(featureConfigPath)).exists()) {
+            val featureConfigFile = new File(featureConfigPath)
+            val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
 
-        val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
-        val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
-        val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration))
-        exprStmts = trueExprs ++ otherExprs ++ falseExprs
-      } else {
-        exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfiguration))
-      }
-      FunctionDef(List(Opt(trueF, VoidSpecifier())), AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))), List(), CompoundStatement(exprStmts))
+            val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
+            val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
+            val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration))
+            exprStmts = trueExprs ++ otherExprs ++ falseExprs
+        } else {
+            exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfiguration))
+        }
+        FunctionDef(List(Opt(trueF, VoidSpecifier())), AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))), List(), CompoundStatement(exprStmts))
     }
 
     /**
-     * Appends the featurePrefix to feature expressions.
+     * Converts the name of a feature 'n' and a given target expression 'e' into an assignment in the form of id2i.'n' = 'e';
+     * @param featureName
+     * @param assignmentSource
+     * @return
      */
-    def getFeatureName(fExpr: FeatureExpr): String = {
-      featurePrefix + fExpr.toString().toLowerCase
-    }
-
-    /**
-     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-     * given ast.
-     */
-    def loadAndUpdateFeatures(ast: TranslationUnit): Unit = {
-      loadAndUpdateFeatures(IfdeftoifUtils.getSingleFeatures(ast))
-    }
-
-    /**
-     * Loads the currently serialized features from @serializedFeaturePath and updates it with the features found in
-     * given feature expression set.
-     */
-    def loadAndUpdateFeatures(newFeatures: Set[SingleFeatureExpr]): Unit = {
-      featureExpressions ++= newFeatures
-      featuresInAst = featureExpressions.size
-      var allFeatureExpressions: Set[SingleFeatureExpr] = Set() // all fexp (this file and previous files)
-      if (new File(serializedFeaturePath).exists) {
-        val loadedFeatures = loadSerializedFeatureNames(serializedFeaturePath)
-        allFeatureExpressions = featureExpressions ++ loadedFeatures
-      } else {
-        new File(path).mkdirs()
-        allFeatureExpressions = featureExpressions
-      }
-      serializeFeatureNames(allFeatureExpressions.map(_.feature.toString), serializedFeaturePath)
-    }
-
-    /**
-     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
-     * assigning selection states to features. The feature selection states are read from the given .config file path.
-     */
-    def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = ""): String = {
-      val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-      val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
-      val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
-      val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
-
-      PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
-      externOptionStructPath
+    private def featureToAssignment(featureName: String, assignmentSource: Expr): Opt[ExprStatement] = {
+        Opt(trueF,
+            ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
+                PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
     }
 
     /**
@@ -344,18 +357,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         sfe.map(FeatureExprFactory.createDefinedExternal)
     } catch {
         case e: ObjectStreamException => System.err.println("failed loading serialized FeatureSet: " + e.getMessage); Set()
-    }
-
-    /**
-     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
-     * assigning selection states to features. The feature selection states are read from the given .config file path.
-     */
-    def writeExternIfdeftoIfStructT(assignments: List[(SingleFeatureExpr, Boolean)], defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
-        val structDeclaration = Opt(trueF, getOptionStruct(featureExpressions))
-        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
-        val initFunction = Opt(trueF, getInitFunctionT(assignments))
-
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
     }
 
     /**
@@ -399,6 +400,18 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Creates an id2i_optionstruct.h file with the ifdeftoif option struct and the init function for
+     * assigning selection states to features. The feature selection states are read from the given .config file path.
+     */
+    def writeExternIfdeftoIfStructT(assignments: List[(SingleFeatureExpr, Boolean)], defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
+        val structDeclaration = Opt(trueF, getOptionStruct(featureExpressions))
+        val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
+        val initFunction = Opt(trueF, getInitFunctionT(assignments))
+
+        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+    }
+
+    /**
      * Takes a list of tuples of SingleFeatureExpr and Boolean to return an init function which
      * assigns values to the struct members of the ifdeftoif config struct according to the feature selection states
      * from the given boolean values.
@@ -414,18 +427,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             }
         })
         FunctionDef(List(Opt(trueF, VoidSpecifier())), AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))), List(), CompoundStatement(exprStmts))
-    }
-
-    /**
-     * Converts the name of a feature 'n' and a given target expression 'e' into an assignment in the form of id2i.'n' = 'e';
-     * @param featureName
-     * @param assignmentSource
-     * @return
-     */
-    private def featureToAssignment(featureName: String, assignmentSource: Expr): Opt[ExprStatement] = {
-        Opt(trueF,
-            ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
-                PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
     }
 
     /**
@@ -709,11 +710,17 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case c: Conditional[Any] =>
                     val res = c.simplify(feat)
                     res
-                case i: Id if !idsToBeReplaced.containsKey(i) => i
+                case i: Id if !idsToBeReplaced.containsKey(i) =>
+                    i
                 case i: Id =>
                     updateIdMap(feat)
                     val featureList = idsToBeReplaced.get(i)
-                    val matchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
+                    var matchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
+                    val impliedIds = matchingId.filter(x => x.implies(feat).isTautology())
+                    if (!impliedIds.isEmpty) {
+                        // Narrow down features, for context A&B and given features (A, A&B); remove feature
+                        matchingId = matchingId.filterNot(x => feat.implies(x).isTautology() && !x.implies(feat).isTautology())
+                    }
                     matchingId match {
                         case Nil =>
                             // Check for a matching ID in a context which is still satisfiable
@@ -814,7 +821,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Starts the ifdeftoif transformation process on the given TranslationUnit and additional information like
      * the featureModel, declUseMap etc.
      */
-    def ifdeftoif(source_ast: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty, outputStem: String = "unnamed", lexAndParseTime: Long = 0, writeStatistics: Boolean = true, newPath: String = "", typecheckResult: Boolean = true, useExternConfigStruct: Boolean = true): (Option[AST], Long, List[TypeChefError]) = {
+    def ifdeftoif(source_ast: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, fctFwdDecls: IdentityIdHashMap, featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty, outputStem: String = "unnamed", lexAndParseTime: Long = 0, writeStatistics: Boolean = true, newPath: String = "", typecheckResult: Boolean = true, useExternConfigStruct: Boolean = true): (Option[AST], Long, List[TypeChefError]) = {
         new File(path).mkdirs()
         init(fm)
 
@@ -822,6 +829,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         fm = featureModel
         defuse = decluse
         defuseKeys = defuse.keySet.toArray().toList
+        fwdDecls = fctFwdDecls.keySet.toArray().toList
         usedef = usedecl
 
         if (astEnv == null)
@@ -935,7 +943,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Runs #ifdef to if transformation on given translation unit.
      */
-    def transformAst(tunit: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap,
+    def transformAst(tunit: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, fctFwdDecls: IdentityIdHashMap,
                      parseTime: Long, enabledFeatures: Set[SingleFeatureExpr] = Set(), featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty): (TranslationUnit, String) = {
         fm = featureModel
         init(fm)
@@ -946,6 +954,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         featureExpressions = IfdeftoifUtils.getSingleFeatures(tunit)
         defuse = decluse
         defuseKeys = defuse.keySet.toArray().toList
+        fwdDecls = fctFwdDecls.keySet.toArray().toList
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
         val result = transformRecursive(tunit, trueF, true)
@@ -958,7 +967,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Runs #ifdef to if transformation on given translation unit and returns a set of feature names.
      */
-    def testAst(tunit: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap,
+    def testAst(tunit: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, fctFwdDecls: IdentityIdHashMap,
                 parseTime: Long, enabledFeatures: Set[SingleFeatureExpr] = Set(), featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty): (TranslationUnit, List[List[(SingleFeatureExpr, Boolean)]]) = {
         fm = featureModel
         init(fm)
@@ -969,6 +978,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         featureExpressions = IfdeftoifUtils.getSingleFeatures(tunit)
         defuse = decluse
         defuseKeys = defuse.keySet.toArray().toList
+        fwdDecls = fctFwdDecls.keySet.toArray().toList
         usedef = usedecl
         val time = tb.getCurrentThreadCpuTime
         val result = transformRecursive(tunit, trueF, true)
@@ -1297,7 +1307,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             val result = computeCarthesianProductHelper(preparedList, context)
             result
         }
-        computeCarthesianProductHelper(preparedList, context)
     }
 
     /**
@@ -1763,9 +1772,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * 4. Transform ElifStatements
      */
     def handleIfStatement(optIf: Opt[_], currentContext: FeatureExpr, functionContext: FeatureExpr, addedCondition: Expr = Id("")): List[Opt[_]] = {
-
-        // 0. Step
-
         // 1. Step
         if (!optIf.feature.equivalentTo(trueF) && !currentContext.implies(optIf.feature).isTautology) {
             optIf.entry match {
@@ -2151,7 +2157,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                         result
                     } else {
-                        if (isFunctionForwardDeclaration(tmpDecl.init) && !declarationFeature.equals(trueF) && declNameOccursOnce(optDeclaration)) {
+                        if (isFunctionForwardDeclaration(tmpDecl.init) && isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
                             // Don't rename optional function forward declarations
                             val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
                             result
@@ -2186,7 +2192,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Checks the declaration use map to see if there are multiple declarations with the same name.
      */
     def declNameOccursOnce(optDeclaration: Opt[Declaration]): Boolean = {
-        !optDeclaration.entry.init.exists(x => defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
+        if (isFunctionForwardDeclaration(optDeclaration.entry.init)) {
+            !optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
+        } else {
+            !optDeclaration.entry.init.exists(x => defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
+        }
     }
 
     /**
@@ -2799,7 +2809,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * @return
      */
     private def isOptionalDeclaration(decl: Opt[Declaration], context: FeatureExpr): Boolean = {
-        return !decl.feature.equivalentTo(context)
+        return hasMoreContextInfo(decl.feature, context)
+    }
+
+    private def hasMoreContextInfo(feature: FeatureExpr, context: FeatureExpr): Boolean = {
+        feature.and(context).implies(context).isTautology() && !context.implies(feature.and(context)).isTautology()
     }
 
     /**
