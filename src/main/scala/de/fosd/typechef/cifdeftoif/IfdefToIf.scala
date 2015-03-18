@@ -69,8 +69,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val skippedDuplicationsPath = path ++ "skipped_duplications.txt"
     // Path to the top level statistics file
     private val topLevelStatisticsPath = path ++ "top_level_statistics.csv"
-    // Path to the top levelstatistics file
+    // Path to the type error file
     private val typeErrorPath = path ++ "type_errors.txt"
+    // Path to the external declaration file, contains information about multiple occurences of the same external declaration
+    private val externalDeclPath = path ++ "external_declarations.txt"
+    private var externalDeclMsgs = ""
     // Default config path
     private val defConfig = new File("..").getCanonicalPath ++ fs ++ "TypeChef-BusyboxAnalysis" ++ fs ++ "BusyBoxDefConfig.config"
     // Name of the initialized ifdeftoif configuration struct
@@ -878,6 +881,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             PrettyPrinter.printD(result_ast, ifdeftoif_file)
         }
         println("Printed ifdeftoif to file " + ifdeftoif_file)
+
+        if (!externalDeclMsgs.equals("")) {
+            val externalDeclHeader = "-+ Multiple external declarations with the same name in " + fileNameWithExt + " +-\n"
+            addToFile(externalDeclPath, externalDeclHeader + externalDeclMsgs)
+        }
 
         if (!typecheckResult) {
             println("Skipping typecheck of ifdeftoif result")
@@ -2140,32 +2148,37 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         }
                     }
                 }
+
+                if (isExternDeclaration(optDeclaration) && !declNameOccursOnce(optDeclaration)) {
+                    val namedId = optDeclaration.entry.init.map(x => x.entry.getId).head
+                    var extMsg = namedId.name
+                    if (namedId.range.isDefined) {
+                        extMsg = extMsg + " at " + namedId.range.get.toString()
+                    }
+                    externalDeclMsgs = externalDeclMsgs + extMsg
+                }
                 if (exceedsThreshold(features)) {
                     List(transformPossibleIdentifiers(Opt(trueF, tmpDecl), declarationFeature.and(curCtx)))
                 } else if (!features.isEmpty) {
                     if (isStruct && !specifierFeatures.isEmpty) {
-                        val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(convertStructSpecifier(tmpDecl, specifierFeatures.find(y => x.implies(y).isTautology()).getOrElse(trueF)), x, functionContext), x), x, false, functionContext)))
+                        val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(convertStructSpecifier(tmpDecl, specifierFeatures.find(y => x.implies(y).isTautology()).getOrElse(trueF)), x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
                         result
                     } else {
-                        val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x, functionContext), x), x, false, functionContext)))
+                        val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
                         result
                     }
                 } else {
-                    if (isExternDeclaration(optDeclaration) && isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
-                        // Don't rename external declarations if they are only optional
+                    if (isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
+                        // Don't rename optional declarations
+                        println("Optional: " + isOptionalDeclaration(optDeclaration, curCtx))
+                        println("Occurs once: " + declNameOccursOnce(optDeclaration))
                         val tmp = replaceOptAndId(tmpDecl, declarationFeature, functionContext)
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                         result
                     } else {
-                        if (isFunctionForwardDeclaration(tmpDecl.init) && isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
-                            // Don't rename optional function forward declarations
-                            val result = List(Opt(trueF, transformRecursive(replaceOptAndId(tmpDecl, declarationFeature, functionContext), curCtx, isTopLevel, functionContext)))
-                            result
-                        } else {
-                            val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature, functionContext), declarationFeature)
-                            val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
-                            result
-                        }
+                        val tmp = convertId(replaceOptAndId(tmpDecl, declarationFeature, functionContext), declarationFeature, isExternDeclaration(optDeclaration))
+                        val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
+                        result
                     }
                 }
         }
@@ -2192,7 +2205,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Checks the declaration use map to see if there are multiple declarations with the same name.
      */
     def declNameOccursOnce(optDeclaration: Opt[Declaration]): Boolean = {
-        if (isFunctionForwardDeclaration(optDeclaration.entry.init)) {
+        if (isFunctionForwardDeclaration(optDeclaration.entry.init) && !optDeclaration.entry.init.exists(x => defuse.containsKey(x.entry.declarator.getId))) {
             !optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
         } else {
             !optDeclaration.entry.init.exists(x => defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
@@ -3011,7 +3024,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Renames the first identifier inside a declaration by adding the ifdeftoif prefix number for given FeatureExpr ft.
      */
-    private def convertId[T <: Product](current: T, feat: FeatureExpr): T = {
+    private def convertId[T <: Product](current: T, feat: FeatureExpr, isExternDeclaration: Boolean = false): T = {
         def convert[T <: Product](t: T, ft: FeatureExpr): T = {
             t match {
                 case Declaration(declSpecs, init) =>
@@ -3033,7 +3046,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     NestedNamedDeclarator(pointers, convertId(nestedDecl, ft), extensions, attrib).asInstanceOf[T]
             }
         }
-        if (feat.equivalentTo(trueF)) {
+        if (feat.equivalentTo(trueF) || isExternDeclaration) {
             current
         } else {
             convert(current, feat)

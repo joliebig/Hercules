@@ -188,7 +188,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fwdDecls, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
                             tuple._1 match {
                                 case None =>
-                                    println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result !!")
+                                    println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result, check ../ifdeftoif/type_errors.txt and ../ifdeftoif/externalDeclarations.txt !!")
                                 /*
                                 tuple._3.map(errorXML.renderTypeError(_))             y
                                  */
