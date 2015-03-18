@@ -3024,7 +3024,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Renames the first identifier inside a declaration by adding the ifdeftoif prefix number for given FeatureExpr ft.
      */
-    private def convertId[T <: Product](current: T, feat: FeatureExpr): T = {
+    private def convertId[T <: Product](current: T, feat: FeatureExpr, isExternDeclaration: Boolean = false): T = {
         def convert[T <: Product](t: T, ft: FeatureExpr): T = {
             t match {
                 case Declaration(declSpecs, init) =>
@@ -3046,7 +3046,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     NestedNamedDeclarator(pointers, convertId(nestedDecl, ft), extensions, attrib).asInstanceOf[T]
             }
         }
-        if (feat.equivalentTo(trueF)) {
+        if (feat.equivalentTo(trueF) || isExternDeclaration) {
             current
         } else {
             convert(current, feat)
