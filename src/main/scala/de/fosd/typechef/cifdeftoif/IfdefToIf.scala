@@ -2205,8 +2205,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Checks the declaration use map to see if there are multiple declarations with the same name.
      */
     def declNameOccursOnce(optDeclaration: Opt[Declaration]): Boolean = {
-        if (isFunctionForwardDeclaration(optDeclaration.entry.init) && !optDeclaration.entry.init.exists(x => defuse.containsKey(x.entry.declarator.getId))) {
-            !optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
+        if (isFunctionForwardDeclaration(optDeclaration.entry.init)) {
+            !(optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1) || (optDeclaration.entry.init.exists(x => defuse.containsKey(x.entry.declarator.getId) && defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)))
         } else {
             !optDeclaration.entry.init.exists(x => defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
         }
@@ -3024,7 +3024,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Renames the first identifier inside a declaration by adding the ifdeftoif prefix number for given FeatureExpr ft.
      */
-    private def convertId[T <: Product](current: T, feat: FeatureExpr, isExternDeclaration: Boolean = false): T = {
+    private def convertId[T <: Product](current: T, feat: FeatureExpr): T = {
         def convert[T <: Product](t: T, ft: FeatureExpr): T = {
             t match {
                 case Declaration(declSpecs, init) =>
@@ -3046,7 +3046,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     NestedNamedDeclarator(pointers, convertId(nestedDecl, ft), extensions, attrib).asInstanceOf[T]
             }
         }
-        if (feat.equivalentTo(trueF) || isExternDeclaration) {
+        if (feat.equivalentTo(trueF)) {
             current
         } else {
             convert(current, feat)
