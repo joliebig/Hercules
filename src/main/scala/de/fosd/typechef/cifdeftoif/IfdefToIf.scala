@@ -2170,8 +2170,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 } else {
                     if (isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
                         // Don't rename optional declarations
-                        println("Optional: " + isOptionalDeclaration(optDeclaration, curCtx))
-                        println("Occurs once: " + declNameOccursOnce(optDeclaration))
                         val tmp = replaceOptAndId(tmpDecl, declarationFeature, functionContext)
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
                         result
