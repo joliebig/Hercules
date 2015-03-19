@@ -2153,7 +2153,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val namedId = optDeclaration.entry.init.map(x => x.entry.getId).head
                     var extMsg = namedId.name
                     if (namedId.range.isDefined) {
-                        extMsg = extMsg + " at " + namedId.range.get.toString()
+                        extMsg = extMsg + " at " + namedId.range.get._1.toString()
                     }
                     extMsg = extMsg + "\n"
                     externalDeclMsgs = externalDeclMsgs + extMsg
