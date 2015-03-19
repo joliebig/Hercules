@@ -884,7 +884,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
         if (!externalDeclMsgs.equals("")) {
             val externalDeclHeader = "-+ Multiple external declarations with the same name in " + fileNameWithExt + " +-\n"
-            addToFile(externalDeclPath, externalDeclHeader + externalDeclMsgs)
+            addToFile(externalDeclPath, externalDeclHeader + externalDeclMsgs + "\n")
         }
 
         if (!typecheckResult) {
@@ -2155,6 +2155,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     if (namedId.range.isDefined) {
                         extMsg = extMsg + " at " + namedId.range.get.toString()
                     }
+                    extMsg = extMsg + "\n"
                     externalDeclMsgs = externalDeclMsgs + extMsg
                 }
                 if (exceedsThreshold(features)) {
