@@ -661,7 +661,8 @@ static const char * const azCompileOpt[] = {
         ("+++New Code+++\n" + PrettyPrinter.print(newAst))
     }
 
-    @Test
+    // Ignoring test for now, includes variable external declarations which should be renamed/removed by the user
+    @Ignore
     def test_alex_1() {
         val file = new File(ifdeftoifTestPath + "1.c")
         println(i.getAstFromFile(file))
@@ -689,7 +690,8 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
-    @Test
+    // Ignoring test for now, includes variable external declarations which should be renamed/removed by the user
+    @Ignore
     def test_alex_5() {
         val file = new File(ifdeftoifTestPath + "5.c")
         println(i.getAstFromFile(file))
