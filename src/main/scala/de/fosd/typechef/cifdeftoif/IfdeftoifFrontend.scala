@@ -123,24 +123,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
             if (ast != null) {
 
-
-                // I need this code for building serialized AST-parts that I can use in PreparedIfdeftoifParts to replace problematic AST elements.
-                // step 1. copy problematic source code in file, load it with TC, trim and copy AST code (line 1) in val s
-                // (trimming (search object) means to remove the TranslationUnit and the next List Object )
-                // step 2. fix problematic source code in file, load it with TC, trim and copy AST code (line 1) in val r
-                // (trimming (replace object) means to remove the TranslationUnit and optionally the List if it has only one item )
-                // step 3. run TC again, copy 4 following lines to File "ifdeftoif_replacements_parts/PreparedReplacementParts.txt"
-                /*
-                println("// AST:  " + ast)
-                println()
-                val s = Opt(FeatureExprFactory.True,Declaration(List(Opt(FeatureExprFactory.True,EnumSpecifier(None,Some(List(Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_COLLAPSE"),Some(Constant("0x00010000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_TRIM"),Some(Constant("0x00020000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_GREEDY"),Some(Constant("0x00040000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_MIN_DIE"),Some(Constant("0x00100000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_KEEP_COPY"),Some(NAryExpr(Constant("0x00200000"),List(Opt(FeatureExprFactory.createDefinedExternal("CONFIG_FEATURE_CROND_D"),NArySubExpr("*",Constant("1"))), Opt(FeatureExprFactory.createDefinedExternal("CONFIG_FEATURE_CROND_D").not(),NArySubExpr("*",Constant("0")))))))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_EOL_COMMENTS"),Some(Constant("0x00400000")))), Opt(FeatureExprFactory.True,Enumerator(Id("PARSE_NORMAL"),Some(NAryExpr(Id("PARSE_COLLAPSE"),List(Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_TRIM"))), Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_GREEDY"))), Opt(FeatureExprFactory.True,NArySubExpr("|",Id("PARSE_EOL_COMMENTS"))))))))))))),List()))
-                val r = List(Opt(FeatureExprFactory.True,Declaration(List(Opt(FeatureExprFactory.True,EnumSpecifier(None,Some(List(Opt(FeatureExprFactory.True,Enumerator(Id("LOGMODE_NONE"),Some(Constant("0")))), Opt(FeatureExprFactory.True,Enumerator(Id("LOGMODE_STDIO"),Some(NAryExpr(Constant("1"),List(Opt(FeatureExprFactory.True,NArySubExpr("<<",Constant("0"))))))))))))),List())), Opt(FeatureExprFactory.True,Declaration(List(Opt(FeatureExprFactory.True,IntSpecifier())),List(Opt(FeatureExprFactory.True,InitDeclaratorI(AtomicNamedDeclarator(List(),Id("LOGMODE_SYSLOG"),List()),List(),None))))), Opt(FeatureExprFactory.True,Declaration(List(Opt(FeatureExprFactory.True,IntSpecifier())),List(Opt(FeatureExprFactory.True,InitDeclaratorI(AtomicNamedDeclarator(List(),Id("LOGMODE_BOTH"),List()),List(),None))))), Opt(FeatureExprFactory.True,FunctionDef(List(Opt(FeatureExprFactory.True,VoidSpecifier())),AtomicNamedDeclarator(List(),Id("prepared_init_logmodeEnum"),List(Opt(FeatureExprFactory.True,DeclIdentifierList(List())))),List(),CompoundStatement(List(Opt(FeatureExprFactory.True,ExprStatement(AssignExpr(Id("LOGMODE_SYSLOG"),"=",ConditionalExpr(PostfixExpr(Id("id2i"),PointerPostfixSuffix(".",Id("config_feature_syslog"))),Some(NAryExpr(NAryExpr(Constant("1"),List(Opt(FeatureExprFactory.True,NArySubExpr("<<",Constant("1"))))),List(Opt(FeatureExprFactory.True,NArySubExpr("*",Constant("1")))))),NAryExpr(NAryExpr(Constant("1"),List(Opt(FeatureExprFactory.True,NArySubExpr("<<",Constant("1"))))),List(Opt(FeatureExprFactory.True,NArySubExpr("*",Constant("0"))))))))), Opt(FeatureExprFactory.True,ExprStatement(AssignExpr(Id("LOGMODE_BOTH"),"=",NAryExpr(Id("LOGMODE_SYSLOG"),List(Opt(FeatureExprFactory.True,NArySubExpr("+",Id("LOGMODE_STDIO")))))))))))))
-                println("// search for: " + s)
-                println("searchObj: " + PreparedIfdeftoifParts.serializeObject(s))
-                println("// replace with: " + r)
-                println("replaceObj: " + PreparedIfdeftoifParts.serializeObject(r))
-                */
-
                 // some dataflow analyses require typing information
                 var ts = new CTypeSystemFrontend(ast, fullFM, opt) with CTypeCache with CDeclUse
 
@@ -151,7 +133,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
                     stopWatch.start("typechecking")
                     println("type checking")
-                    val typeCheckStatus = ts.checkASTSilent
+                    val typeCheckStatus = ts.checkAST()
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
                         if (typeCheckStatus) {
@@ -188,7 +170,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fwdDecls, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
                             tuple._1 match {
                                 case None =>
-                                    println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result, check ../ifdeftoif/type_errors.txt and ../ifdeftoif/externalDeclarations.txt !!")
+                                    println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result, see ../ifdeftoif/type_errors.txt and ../ifdeftoif/externalDeclarations.txt !!")
                                 /*
                                 tuple._3.map(errorXML.renderTypeError(_))             y
                                  */

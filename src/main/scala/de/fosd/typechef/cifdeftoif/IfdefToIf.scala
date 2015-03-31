@@ -115,6 +115,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var presenceConditionNumberMap: Map[FeatureExpr, Int] = Map()
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
+    private val externalDeclarations: java.util.HashMap[String, java.util.HashMap[List[Opt[DeclaratorExtension]], List[FeatureExpr]]] = new java.util.HashMap()
     private var combineCounter = 0
 
     /**
@@ -136,6 +137,28 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
 
     def getIfdeftoifContext(context: FeatureExpr, functionContext: FeatureExpr, isTopLevel: Boolean = false): IfdeftoifContext = {
         new IfdeftoifContext(context, functionContext, isTopLevel)
+    }
+
+    def comment(content: String): Opt[Comment] = {
+        Opt(trueF, Comment(content))
+    }
+
+    def retrieveDeclName(decl: Opt[Declaration]): String = {
+        decl.entry.init.map(x => x.entry.getName).find(x => !x.isEmpty) match {
+            case None =>
+                ""
+            case Some(x: String) =>
+                x
+        }
+    }
+
+    def retrieveDeclSignature(decl: Opt[Declaration]): List[Opt[DeclaratorExtension]] = {
+        decl.entry.init.find(x => !x.entry.getName.isEmpty) match {
+            case None =>
+                List()
+            case Some(x: Opt[InitDeclarator]) =>
+                x.entry.declarator.extensions
+        }
     }
 
     /**
@@ -1210,6 +1233,18 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     l.flatMap(x => x match {
                         case o@Opt(ft: FeatureExpr, entry) =>
                             val newCtx = ft.and(currentContext)
+                            if (o.entry.isInstanceOf[Declaration] && isExternDeclaration(o.asInstanceOf[Opt[Declaration]]) && isOptionalDeclaration(o.asInstanceOf[Opt[Declaration]], currentContext)) {
+                                val optDecl = o.asInstanceOf[Opt[Declaration]]
+                                val declarationName = retrieveDeclName(optDecl)
+                                val extensions = replaceOptAndId(retrieveDeclSignature(optDecl), newCtx, trueF)
+                                if (externalDeclarations.containsKey(declarationName) && externalDeclarations.get(declarationName).containsKey(extensions)) {
+                                    externalDeclarations.get(declarationName).put(extensions, (newCtx :: externalDeclarations.get(declarationName).get(extensions)).distinct)
+                                } else {
+                                    val newHash: java.util.HashMap[List[Opt[DeclaratorExtension]], List[FeatureExpr]] = new java.util.HashMap()
+                                    newHash.put(extensions, List(newCtx))
+                                    externalDeclarations.put(declarationName, newHash)
+                                }
+                            }
                             if (!newCtx.isSatisfiable(fm)) {
                                 List()
                             } else {
@@ -2044,7 +2079,26 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Transforms given declaration. Transformation has different effects, declaration could be duplicated / renamed etc.
      */
-    def handleDeclarations(optDeclaration: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false, functionContext: FeatureExpr = trueF): List[Opt[Declaration]] = {
+    def handleDeclarations(optDecl: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false, functionContext: FeatureExpr = trueF): List[Opt[Declaration]] = {
+        var optDeclaration = optDecl
+        if (isExternDeclaration(optDeclaration) && isOptionalDeclaration(optDeclaration, curCtx)) {
+            val declName = retrieveDeclName(optDeclaration)
+            val extensions = replaceOptAndId(retrieveDeclSignature(optDeclaration), curCtx.and(optDeclaration.feature), trueF)
+            if (externalDeclarations.containsKey(declName) && externalDeclarations.get(declName).containsKey(extensions)) {
+                if (externalDeclarations.get(declName).get(extensions).isEmpty) {
+                    // Element is external declaration which has been merged before already
+                    // return List(Opt(trueF, Declaration(List(), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id("wtf"), List()), List(), None))))))
+                    return List()
+                } else {
+                    // Merge context of multiple external declarations with the same name and the same signature
+                    val newCtx = externalDeclarations.get(declName).get(extensions).foldLeft(falseF)((a, b) => a.or(b))
+                    externalDeclarations.get(declName).put(extensions, List())
+                    optDeclaration = Opt(newCtx, replaceOptAndId(optDeclaration.entry, curCtx.and(optDeclaration.feature), functionContext))
+                    // return handleDeclarations(Opt(newCtx, optDeclaration.entry), curCtx, isTopLevel, functionContext)
+                }
+            }
+        }
+
         optDeclaration.entry match {
             case Declaration(declSpecs, init) =>
                 val declarationFeature = optDeclaration.feature
@@ -2165,8 +2219,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(convertStructSpecifier(tmpDecl, specifierFeatures.find(y => x.implies(y).isTautology()).getOrElse(trueF)), x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
                         result
                     } else {
-                        val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
-                        result
+                        if (isExternDeclaration(optDeclaration)) {
+                            // Duplicating external declarations; add a comment so the user can manually decide to keep one variant of the external declaration
+                            val cmt = comment("DUPLICATION:: Please choose one variant for this external declaration")
+                            val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
+                            result
+                        } else {
+                            val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
+                            result
+                        }
                     }
                 } else {
                     if (isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
