@@ -155,6 +155,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
+    def retrieveDeclId(decl: Opt[Declaration]): Id = {
+        decl.entry.init.map(x => x.entry.getId).find(x => !x.name.isEmpty) match {
+            case None =>
+                Id("")
+            case Some(x: Id) =>
+                x
+        }
+    }
+
     def retrieveDeclSignature(decl: Opt[Declaration]): List[Opt[DeclaratorExtension]] = {
         decl.entry.init.find(x => !x.entry.getName.isEmpty) match {
             case None =>
@@ -2114,10 +2123,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             val declName = retrieveDeclName(optDeclaration)
             val extensions = removeIdNames(replaceOptAndId(retrieveDeclSignature(optDeclaration), curCtx.and(optDeclaration.feature), trueF))
             if (externalDeclarations.containsKey(declName) && !externalDeclarations.get(declName).containsKey(extensions)) {
-                //val cmt = lstToOpt(List(id2i_rewrite_label + "please choose one variant for the following declaration."))
-                //optDeclaration = Opt(optDecl.feature, Declaration(optDecl.entry.declSpecs, optDecl.entry.init, cmt))
-                val cmt = lstToOpt(List(id2i_rewrite_label + "please choose one variant for the following declaration: " + PrettyPrinter.print(removeOptVariability(optDeclaration.entry))))
-                return List(Opt(trueF, Declaration(List(), List(), cmt)))
+                if (defuse.get(retrieveDeclId(optDecl)).isEmpty) {
+                    val cmt = lstToOpt(List(id2i_remove_label + "removed unused variant for the following declaration: " + PrettyPrinter.print(removeOptVariability(optDeclaration.entry))))
+                    return List(Opt(trueF, Declaration(List(), List(), cmt)))
+                } else {
+                    val cmt = lstToOpt(List(id2i_rewrite_label + "please choose one variant for the following declaration."))
+                    optDeclaration = Opt(optDecl.feature, Declaration(optDecl.entry.declSpecs, optDecl.entry.init, cmt))
+                }
             }
             if (externalDeclarations.containsKey(declName) && externalDeclarations.get(declName).containsKey(extensions)) {
                 if (externalDeclarations.get(declName).get(extensions).isEmpty) {
@@ -2267,11 +2279,15 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     } else {
                         if (isExternDeclaration(optDeclaration)) {
                             // Duplicating external declarations; add a comment so the user can manually decide to keep one variant of the external declaration
-                            // val cmt = lstToOpt(List(id2i_rewrite_label + "please choose one variant for the following declaration."))
-                            //val result = Opt(trueF, transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init), features.head, functionContext), features.head, isExternDeclaration(optDeclaration)), features.head, false, functionContext)) :: features.tail.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init, cmt), x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
-                            val cmt = id2i_rewrite_label + "please choose one variant for the following declaration: "
-                            val result = Opt(trueF, transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init), features.head, functionContext), features.head, isExternDeclaration(optDeclaration)), features.head, false, functionContext)) :: features.tail.map(x => Opt(trueF, Declaration(List(), List(), lstToOpt(List(cmt + PrettyPrinter.print(transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init), x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))))))
-                            result
+                            if (defuse.get(retrieveDeclId(optDecl)).isEmpty) {
+                                val cmt = id2i_remove_label + "removed unused variant for the following declaration: "
+                                val result = Opt(trueF, transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init), features.head, functionContext), features.head, isExternDeclaration(optDeclaration)), features.head, false, functionContext)) :: features.tail.map(x => Opt(trueF, Declaration(List(), List(), lstToOpt(List(cmt + PrettyPrinter.print(transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init), x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))))))
+                                result
+                            } else {
+                                val cmt = lstToOpt(List(id2i_rewrite_label + "please choose one variant for the following declaration."))
+                                val result = Opt(trueF, transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init), features.head, functionContext), features.head, isExternDeclaration(optDeclaration)), features.head, false, functionContext)) :: features.tail.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(Declaration(tmpDecl.declSpecs, tmpDecl.init, cmt), x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
+                                result
+                            }
                         } else {
                             val result = features.map(x => Opt(trueF, transformRecursive(convertId(replaceOptAndId(tmpDecl, x, functionContext), x, isExternDeclaration(optDeclaration)), x, false, functionContext)))
                             result
