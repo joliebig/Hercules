@@ -217,7 +217,7 @@ trait IfdefToIfStatistics extends IfdefToIfStatisticsInterface with IOUtilities 
             // val growth = newNumber - 1
             if (growth > 1) {
                 originalElement match {
-                    case d@Declaration(declSpecs, inits) =>
+                    case d@Declaration(declSpecs, inits, _) =>
                         if (declSpecs.exists(x => x.entry.isInstanceOf[TypedefSpecifier])) {
                             noOfTypedefDuplications = noOfTypedefDuplications + growth
                             noOfTypedefsToDuplicate = noOfTypedefsToDuplicate + 1
@@ -368,7 +368,7 @@ trait IfdefToIfStatistics extends IfdefToIfStatisticsInterface with IOUtilities 
         var variables: Long = 0
 
         ast.defs.foreach(x => x.entry match {
-            case d@Declaration(declSpecs, inits) =>
+            case d@Declaration(declSpecs, inits, _) =>
                 if (declSpecs.exists(x => x.entry.isInstanceOf[TypedefSpecifier])) {
                     typedefs = typedefs + 1
                 } else if (declSpecs.exists(x => x.entry.isInstanceOf[StructOrUnionSpecifier])) {
