@@ -76,7 +76,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val typeErrorPath = path ++ "type_errors.txt"
     // Path to the external declaration file, contains information about multiple occurences of the same external declaration
     private val externalDeclPath = path ++ "external_declarations.txt"
-    private var externalDeclMsgs = ""
     // Default config path
     private val defConfig = new File("..").getCanonicalPath ++ fs ++ "TypeChef-BusyboxAnalysis" ++ fs ++ "BusyBoxDefConfig.config"
     // Name of the initialized ifdeftoif configuration struct
@@ -98,6 +97,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Same data structure as above used for the second ifdeftoif run
     private val idsToBeReplacedSecondRun: IdentityHashMap[Id, Set[FeatureExpr]] = new IdentityHashMap()
     private val createFunctionsForModelChecking = false
+    private val externalDeclarations: java.util.HashMap[String, java.util.HashMap[List[Opt[DeclaratorExtension]], List[FeatureExpr]]] = new java.util.HashMap()
+    private var externalDeclMsgs = ""
     /* Variables used for the ifdeftoif transformation process */
     private var astEnv: ASTEnv = null
     private var fm: FeatureModel = FeatureExprFactory.empty
@@ -118,7 +119,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private var presenceConditionNumberMap: Map[FeatureExpr, Int] = Map()
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
-    private val externalDeclarations: java.util.HashMap[String, java.util.HashMap[List[Opt[DeclaratorExtension]], List[FeatureExpr]]] = new java.util.HashMap()
     private var combineCounter = 0
 
     /**
@@ -146,30 +146,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         Opt(trueF, Comment(content))
     }
 
-    def retrieveDeclName(decl: Opt[Declaration]): String = {
-        decl.entry.init.map(x => x.entry.getName).find(x => !x.isEmpty) match {
-            case None =>
-                ""
-            case Some(x: String) =>
-                x
-        }
-    }
-
     def retrieveDeclId(decl: Opt[Declaration]): Id = {
         decl.entry.init.map(x => x.entry.getId).find(x => !x.name.isEmpty) match {
             case None =>
                 Id("")
             case Some(x: Id) =>
                 x
-        }
-    }
-
-    def retrieveDeclSignature(decl: Opt[Declaration]): List[Opt[DeclaratorExtension]] = {
-        decl.entry.init.find(x => !x.entry.getName.isEmpty) match {
-            case None =>
-                List()
-            case Some(x: Opt[InitDeclarator]) =>
-                x.entry.declarator.extensions
         }
     }
 
@@ -377,6 +359,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
     }
 
+    def getFeatureName(name: String): String = {
+        featurePrefix + name.toLowerCase
+    }
+
     /**
      * Loads a serialized Set of SingleFeatureExpressions.
      */
@@ -420,10 +406,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     None,
                     List())))))
     }
-
-  def getFeatureName(name: String): String = {
-    featurePrefix + name.toLowerCase
-  }
 
     /**
      * Converts a list of StructDeclarations into a Declaration. Ex: List(int config_x64) -> struct ifdefoptions {int config_x64;} id2i;
@@ -621,37 +603,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-     * Whenever we rename a declaration of a variable/field/etc. we call this function.
-     * Using the Declaration-Use-Map we store the usages of renamed declarations and the presence conditions under which
-     * they were renamed. Later on this information will be used to rename the corresponding usages of identifiers.
-     */
-    def addIdUsages(i: Id, ft: FeatureExpr) {
-        def putIntoIdsToBeReplaced(i: Id, feature: FeatureExpr) {
-            if (idsToBeReplaced.containsKey(i)) {
-                idsToBeReplaced.put(i, idsToBeReplaced.get(i) + feature)
-                idsToBeReplacedSecondRun.put(i, idsToBeReplaced.get(i) + feature)
-            } else {
-                idsToBeReplaced.put(i, Set(feature))
-                idsToBeReplacedSecondRun.put(i, Set(feature))
-            }
-        }
-        incRenamings()
-        if (defuse.containsKey(i)) {
-            val idUsages = defuse.get(i)
-            incRenamingUsages(idUsages.size)
-            idUsages.foreach(x => {
-                putIntoIdsToBeReplaced(x, ft)
-            })
-        } else if (usedef.containsKey(i)) {
-            val idUsages = usedef.get(i).flatMap(x => {
-                val usages = defuse.get(x) // can returned null iff no usage is known; if null is returned in flatMap then NPE is thrown
-                if (usages != null) usages else Set()
-            })
-            idUsages.foreach(x => putIntoIdsToBeReplaced(x, ft))
-        }
-    }
-
-    /**
      * Converts a given Choice[Expr] element to a ConditionalExpr. Example:
      * Choice(def(A),One(Id(a)),Choice(def(B),One(Id(b)),One(null))) -> (id2i_opt.a ? a : ((! id2i_opt.b) ?  : b))
      */
@@ -674,128 +625,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
-    /**
-     * Renames identifiers by adding the ifdeftoif prefix number for given FeatureExpr ft. Also updates
-     * idsToBeReplacedSecondRun by removing identifiers which have already been renamed during this first run.
-     */
-    def prependCtxPrefix(id: Id, context: FeatureExpr): Id = {
-        var actualContext = context
-        var idname = id.name
-        if (context.equivalentTo(trueF)) {
-            id
-        } else {
-            // Identifier was renamed in the first run and already has an ifdeftoif prefix
-            if (java.util.regex.Pattern.compile("_[0-9]+_.+").matcher(id.name).matches()) {
-                val oldPrefix = id.name.split('_')(1)
-                val intPrefix = oldPrefix.toInt
-                idname = id.name.substring(2 + oldPrefix.length())
-                val oldContext = getFeatureForId(intPrefix)
-                oldContext match {
-                    case Some(oldFeature: FeatureExpr) =>
-                        actualContext = oldFeature and context
-                    case _ =>
-                }
-            }
-            if (idsToBeReplaced.containsKey(id)) {
-                idsToBeReplacedSecondRun.remove(id)
-            }
-            Id(getPrefixFromIdMap(actualContext) + idname)
-        }
-    }
-
     def removeOptFeatures[S <: Product](current: S): S = {
         val r = manytd(rule {
             case Opt(ft, entry) =>
                 Opt(trueF, entry)
         })
         r(current).getOrElse(current).asInstanceOf[S]
-    }
-
-    def removeIdNames[S <: Product](current: S): S = {
-        val r = manytd(rule {
-            case Id(name) =>
-                Id("")
-        })
-        r(current).getOrElse(current).asInstanceOf[S]
-    }
-
-    /**
-     * Replaces given FeatureExpression recursively from given Element by True. Also removes Opt nodes which should not
-     * occur in this given context. Also renames identifiers if they have a declaration annotated by given FeatureExpression.
-     */
-    def replaceOptAndId[S <: Product](current: S, feature: FeatureExpr, functionContext: FeatureExpr): S = {
-        def replaceHelp[T <: Any](t: T, feat: FeatureExpr, fctCtx: FeatureExpr): T = {
-            val r = manytd(rule {
-                case l: List[_] =>
-                    l.flatMap {
-                        case o@Opt(ft, LabelStatement(id, attrib)) =>
-                            val composedFeature = ft.and(feat)
-                            if (!composedFeature.isSatisfiable(fm)) {
-                                List()
-                            } else if ((functionContext.implies(ft).isTautology(fm) && ft.implies(feat).isTautology(fm)) || id.name.startsWith(ifdeftoifDefaultLabelName)) {
-                                List(o.copy(feature = trueF))
-                            } else {
-                                // Labels have to be renamed to avoid having the same label name occur multiple times after a duplication
-                                addIdUsages(id, feat)
-                                List(Opt(trueF, LabelStatement(prependCtxPrefix(id, feat), attrib)))
-                            }
-                        case o: Opt[_] =>
-                            // Feature in opt node is equal or less specific than the context, replace opt node feature with True
-                            if (o.feature.equivalentTo(feat, fm) || feat.implies(o.feature).isTautology(fm)) {
-                                List(o.copy(feature = trueF))
-                            }
-                            // Feature in opt node is more specific and still satisfiable in the context, don't change opt node
-                            else if (feat.and(o.feature).isSatisfiable(fm)) {
-                                List(o)
-                            }
-                            // Feature in opt node is not satisfiable in the current context, remove opt node
-                            else {
-                                List()
-                            }
-                        case k =>
-                            List(k)
-                    }
-                case c: Conditional[Any] =>
-                    val res = c.simplify(feat)
-                    res
-                case i: Id if !idsToBeReplaced.containsKey(i) =>
-                    i
-                case i: Id =>
-                    updateIdMap(feat)
-                    val featureList = idsToBeReplaced.get(i)
-                    var matchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
-                    val impliedIds = matchingId.filter(x => x.implies(feat).isTautology())
-                    if (!impliedIds.isEmpty) {
-                        // Narrow down features, for context A&B and given features (A, A&B); remove feature
-                        matchingId = matchingId.filterNot(x => feat.implies(x).isTautology() && !x.implies(feat).isTautology())
-                    }
-                    matchingId match {
-                        case Nil =>
-                            // Check for a matching ID in a context which is still satisfiable
-                            // TODO: warning
-                            i
-                        case (x: FeatureExpr) :: Nil =>
-                            prependCtxPrefix(i, x)
-                        case _ =>
-                            i
-                    }
-            })
-            r(t).getOrElse(t).asInstanceOf[T]
-        }
-
-        if (feature.equivalentTo(trueF, fm) && isFirstRun) {
-            current
-        } else {
-            current match {
-                case Opt(ft, entry) =>
-                    if (ft.equivalentTo(trueF, fm) || ft.equivalentTo(feature, fm)) {
-                        Opt(trueF, replaceHelp(entry, feature, functionContext)).asInstanceOf[S]
-                    } else {
-                        Opt(ft, replaceHelp(entry, feature, functionContext)).asInstanceOf[S]
-                    }
-                case _ => replaceHelp(current, feature, functionContext)
-            }
-        }
     }
 
     def removeOptVariability[S <: Product](current: S): S = {
@@ -1264,7 +1099,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     l.flatMap(x => x match {
                         case o@Opt(ft: FeatureExpr, entry) =>
                             val newCtx = ft.and(currentContext)
-                            if (o.entry.isInstanceOf[Declaration] && isExternDeclaration(o.asInstanceOf[Opt[Declaration]]) && isOptionalDeclaration(o.asInstanceOf[Opt[Declaration]], currentContext)) {
+                            if (o.entry.isInstanceOf[Declaration] && isExternDeclaration(o.asInstanceOf[Opt[Declaration]]) && isOptionalEntry(o.asInstanceOf[Opt[Declaration]], currentContext)) {
                                 val optDecl = o.asInstanceOf[Opt[Declaration]]
                                 val declarationName = retrieveDeclName(optDecl)
                                 val extensions = removeIdNames(replaceOptAndId(retrieveDeclSignature(optDecl), newCtx, trueF))
@@ -1311,6 +1146,209 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         prepareASTforIfdefHelper(ast, ctx)
     }
 
+    def retrieveDeclName(decl: Opt[Declaration]): String = {
+        decl.entry.init.map(x => x.entry.getName).find(x => !x.isEmpty) match {
+            case None =>
+                ""
+            case Some(x: String) =>
+                x
+        }
+    }
+
+    def retrieveDeclSignature(decl: Opt[Declaration]): List[Opt[DeclaratorExtension]] = {
+        decl.entry.init.find(x => !x.entry.getName.isEmpty) match {
+            case None =>
+                List()
+            case Some(x: Opt[InitDeclarator]) =>
+                x.entry.declarator.extensions
+        }
+    }
+
+    def removeIdNames[S <: Product](current: S): S = {
+        val r = manytd(rule {
+            case Id(name) =>
+                Id("")
+        })
+        r(current).getOrElse(current).asInstanceOf[S]
+    }
+
+    /**
+     * Replaces given FeatureExpression recursively from given Element by True. Also removes Opt nodes which should not
+     * occur in this given context. Also renames identifiers if they have a declaration annotated by given FeatureExpression.
+     */
+    def replaceOptAndId[S <: Product](current: S, feature: FeatureExpr, functionContext: FeatureExpr): S = {
+        def replaceHelp[T <: Any](t: T, feat: FeatureExpr, fctCtx: FeatureExpr): T = {
+            val r = manytd(rule {
+                case l: List[_] =>
+                    l.flatMap {
+                        case o@Opt(ft, LabelStatement(id, attrib)) =>
+                            val composedFeature = ft.and(feat)
+                            if (!composedFeature.isSatisfiable(fm)) {
+                                List()
+                            } else if ((functionContext.implies(ft).isTautology(fm) && ft.implies(feat).isTautology(fm)) || id.name.startsWith(ifdeftoifDefaultLabelName)) {
+                                List(o.copy(feature = trueF))
+                            } else {
+                                // Labels have to be renamed to avoid having the same label name occur multiple times after a duplication
+                                addIdUsages(id, feat)
+                                List(Opt(trueF, LabelStatement(prependCtxPrefix(id, feat), attrib)))
+                            }
+                        case o: Opt[_] =>
+                            // Feature in opt node is equal or less specific than the context, replace opt node feature with True
+                            if (o.feature.equivalentTo(feat, fm) || feat.implies(o.feature).isTautology(fm)) {
+                                List(o.copy(feature = trueF))
+                            }
+                            // Feature in opt node is more specific and still satisfiable in the context, don't change opt node
+                            else if (feat.and(o.feature).isSatisfiable(fm)) {
+                                List(o)
+                            }
+                            // Feature in opt node is not satisfiable in the current context, remove opt node
+                            else {
+                                List()
+                            }
+                        case k =>
+                            List(k)
+                    }
+                case c: Conditional[Any] =>
+                    val res = c.simplify(feat)
+                    res
+                case i: Id if !idsToBeReplaced.containsKey(i) =>
+                    i
+                case i: Id =>
+                    updateIdMap(feat)
+                    val featureList = idsToBeReplaced.get(i)
+                    var matchingId = featureList.filter(x => feat.and(x).isSatisfiable(fm)).toList
+                    val impliedIds = matchingId.filter(x => x.implies(feat).isTautology())
+                    if (!impliedIds.isEmpty) {
+                        // Narrow down features, for context A&B and given features (A, A&B); remove feature
+                        matchingId = matchingId.filterNot(x => feat.implies(x).isTautology() && !x.implies(feat).isTautology())
+                    }
+                    matchingId match {
+                        case Nil =>
+                            // Check for a matching ID in a context which is still satisfiable
+                            // TODO: warning
+                            i
+                        case (x: FeatureExpr) :: Nil =>
+                            prependCtxPrefix(i, x)
+                        case _ =>
+                            i
+                    }
+            })
+            r(t).getOrElse(t).asInstanceOf[T]
+        }
+
+        if (feature.equivalentTo(trueF, fm) && isFirstRun) {
+            current
+        } else {
+            current match {
+                case Opt(ft, entry) =>
+                    if (ft.equivalentTo(trueF, fm) || ft.equivalentTo(feature, fm)) {
+                        Opt(trueF, replaceHelp(entry, feature, functionContext)).asInstanceOf[S]
+                    } else {
+                        Opt(ft, replaceHelp(entry, feature, functionContext)).asInstanceOf[S]
+                    }
+                case _ => replaceHelp(current, feature, functionContext)
+            }
+        }
+    }
+
+    /**
+     * Whenever we rename a declaration of a variable/field/etc. we call this function.
+     * Using the Declaration-Use-Map we store the usages of renamed declarations and the presence conditions under which
+     * they were renamed. Later on this information will be used to rename the corresponding usages of identifiers.
+     */
+    def addIdUsages(i: Id, ft: FeatureExpr) {
+        def putIntoIdsToBeReplaced(i: Id, feature: FeatureExpr) {
+            if (idsToBeReplaced.containsKey(i)) {
+                idsToBeReplaced.put(i, idsToBeReplaced.get(i) + feature)
+                idsToBeReplacedSecondRun.put(i, idsToBeReplaced.get(i) + feature)
+            } else {
+                idsToBeReplaced.put(i, Set(feature))
+                idsToBeReplacedSecondRun.put(i, Set(feature))
+            }
+        }
+        incRenamings()
+        if (defuse.containsKey(i)) {
+            val idUsages = defuse.get(i)
+            incRenamingUsages(idUsages.size)
+            idUsages.foreach(x => {
+                putIntoIdsToBeReplaced(x, ft)
+            })
+        } else if (usedef.containsKey(i)) {
+            val idUsages = usedef.get(i).flatMap(x => {
+                val usages = defuse.get(x) // can returned null iff no usage is known; if null is returned in flatMap then NPE is thrown
+                if (usages != null) usages else Set()
+            })
+            idUsages.foreach(x => putIntoIdsToBeReplaced(x, ft))
+        }
+    }
+
+    /**
+     * Renames identifiers by adding the ifdeftoif prefix number for given FeatureExpr ft. Also updates
+     * idsToBeReplacedSecondRun by removing identifiers which have already been renamed during this first run.
+     */
+    def prependCtxPrefix(id: Id, context: FeatureExpr): Id = {
+        var actualContext = context
+        var idname = id.name
+
+        if (context.equivalentTo(trueF)) {
+            id
+        } else {
+            // Identifier was renamed in the first run and already has an ifdeftoif prefix
+            if (java.util.regex.Pattern.compile("_[0-9]+_.+").matcher(id.name).matches()) {
+                val oldPrefix = id.name.split('_')(1)
+                val intPrefix = oldPrefix.toInt
+                idname = id.name.substring(2 + oldPrefix.length())
+                val oldContext = getFeatureForId(intPrefix)
+                oldContext match {
+                    case Some(oldFeature: FeatureExpr) =>
+                        actualContext = oldFeature and context
+                    case _ =>
+                }
+            }
+            if (idsToBeReplaced.containsKey(id)) {
+                idsToBeReplacedSecondRun.remove(id)
+            }
+            Id(getPrefixFromIdMap(actualContext) + idname)
+        }
+    }
+
+    /**
+     * Creates a prefix for identifiers from the presence condition under which they occur.
+     * Format is _x_ where x is an Integer which represents the presence condition.
+     */
+    private def getPrefixFromIdMap(feat: FeatureExpr): String = {
+        def getFromIdMap(feat: FeatureExpr): Int = {
+            updateIdMap(feat)
+            presenceConditionNumberMap.get(feat).get
+        }
+        "_" + getFromIdMap(feat) + "_"
+    }
+
+    /**
+     * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
+     * ifdeftoif transformation to retrieve the context of an already renamed identifier.
+     */
+    private def getFeatureForId(id: Int): Option[FeatureExpr] = {
+        if (presenceConditionNumberMap.size < id || id < 0) {
+            None
+        } else {
+            val it = presenceConditionNumberMap.iterator
+            while (it.hasNext) {
+                val next = it.next()
+                if (next._2.equals(id)) {
+                    return Some(next._1)
+                }
+            }
+            None
+        }
+    }
+
+    private def updateIdMap(feat: FeatureExpr) = {
+        if (!presenceConditionNumberMap.contains(feat)) {
+            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
+        }
+    }
+
     /**
      * Returns the distinct difference between a feature expression pc and its enclosing context.
      * fExprDiff(A, A&B) => B
@@ -1322,6 +1360,31 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             val result = pc.simplify(context)
             result
         }
+    }
+
+    /**
+     * Returns whether given declaration is an extern declaration or not.
+     * @param decl
+     * @return
+     */
+    private def isExternDeclaration(decl: Opt[Declaration]): Boolean = {
+        return decl.entry.declSpecs.exists(x => x.entry.isInstanceOf[ExternSpecifier])
+    }
+
+    /**
+     * Returns whether given declaration is an optional declaration defined in an #ifdef directive.
+     * @param opt
+     * @return
+     */
+    private def isOptionalEntry(opt: Opt[_], context: FeatureExpr): Boolean = {
+        return hasMoreContextInfo(opt.feature, context)
+    }
+
+    private def hasMoreContextInfo(feature: FeatureExpr, context: FeatureExpr): Boolean = {
+        if (context.equals(trueF) && !feature.equals(trueF)) {
+            //return false
+        }
+        feature.and(context).implies(context).isTautology() && !context.implies(feature.and(context)).isTautology()
     }
 
     /**
@@ -1517,6 +1580,33 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
+     * Takes a look at the CaseStatements and CompoundStatements inside a SwitchStatement in order to determine
+     * the list of FeatureExpressions needed for duplication.
+     *
+    def computeCaseFeatures(cmpStmt: CompoundStatement, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
+        /*def collectCaseStatements(compStmt: CompoundStatement, currentList: List[List[Opt[CaseStatement]]] = List(List())) : List[List[Opt[CaseStatement]]] = {
+            val stmts = compStmt.innerStatements
+            if (stmts.isEmpty){
+                currentList
+            } else if (stmts.head.entry.isInstanceOf[CaseStatement]) {
+                collectCaseStatements(CompoundStatement(stmts.tail), ((stmts.head.asInstanceOf[Opt[CaseStatement]] :: currentList.head) :: currentList.tail))
+            } else if (stmts.head.entry.isInstanceOf[CompoundStatement]) {
+                collectCaseStatements(CompoundStatement(stmts.tail), (List() :: currentList))
+            } else {
+                currentList.drop(1)
+            }
+        }
+        val caseStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[CaseStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
+        val defaultStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[DefaultStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
+        val totalStatements = (caseStatements ++ defaultStatements).filter(x => !x.isEmpty)
+        computeCarthesianProduct(totalStatements)*/
+        val caseFeatures = getFeatureCombinations(cmpStmt.innerStatements.map(x => {
+            x.feature
+        }).filter(x => !x.equivalentTo(trueF)).flatMap(x => x.collectDistinctFeatureObjects).distinct).filter(x => x.implies(currentContext).isTautology(fm))
+        caseFeatures
+    }*/
+
+    /**
      * Takes a look at the CompoundStatements and CaseStatements AS WELL as the expression inside the CaseStatements
      * in a SwitchStatement in order to determine the list of FeatureExpressions needed for duplication purposes.
      */
@@ -1697,33 +1787,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 CompoundStatement(List(Opt(trueF, stmt)))
         }
     }
-
-    /**
-     * Takes a look at the CaseStatements and CompoundStatements inside a SwitchStatement in order to determine
-     * the list of FeatureExpressions needed for duplication.
-     *
-    def computeCaseFeatures(cmpStmt: CompoundStatement, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
-        /*def collectCaseStatements(compStmt: CompoundStatement, currentList: List[List[Opt[CaseStatement]]] = List(List())) : List[List[Opt[CaseStatement]]] = {
-            val stmts = compStmt.innerStatements
-            if (stmts.isEmpty){
-                currentList
-            } else if (stmts.head.entry.isInstanceOf[CaseStatement]) {
-                collectCaseStatements(CompoundStatement(stmts.tail), ((stmts.head.asInstanceOf[Opt[CaseStatement]] :: currentList.head) :: currentList.tail))
-            } else if (stmts.head.entry.isInstanceOf[CompoundStatement]) {
-                collectCaseStatements(CompoundStatement(stmts.tail), (List() :: currentList))
-            } else {
-                currentList.drop(1)
-            }
-        }
-        val caseStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[CaseStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
-        val defaultStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[DefaultStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
-        val totalStatements = (caseStatements ++ defaultStatements).filter(x => !x.isEmpty)
-        computeCarthesianProduct(totalStatements)*/
-        val caseFeatures = getFeatureCombinations(cmpStmt.innerStatements.map(x => {
-            x.feature
-        }).filter(x => !x.equivalentTo(trueF)).flatMap(x => x.collectDistinctFeatureObjects).distinct).filter(x => x.implies(currentContext).isTautology(fm))
-        caseFeatures
-    }*/
 
     /**
      * Calls the proper function to transform a statement st depending on the type of st.
@@ -2119,7 +2182,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def handleDeclarations(optDecl: Opt[Declaration], curCtx: FeatureExpr = trueF, isTopLevel: Boolean = false, functionContext: FeatureExpr = trueF): List[Opt[Declaration]] = {
         var optDeclaration = optDecl
-        if (isExternDeclaration(optDeclaration) && isOptionalDeclaration(optDeclaration, curCtx)) {
+
+        if (isExternDeclaration(optDeclaration) && isOptionalEntry(optDeclaration, curCtx)) {
             val declName = retrieveDeclName(optDeclaration)
             val extensions = removeIdNames(replaceOptAndId(retrieveDeclSignature(optDeclaration), curCtx.and(optDeclaration.feature), trueF))
             if (externalDeclarations.containsKey(declName) && !externalDeclarations.get(declName).containsKey(extensions)) {
@@ -2294,7 +2358,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                         }
                     }
                 } else {
-                    if (isOptionalDeclaration(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
+                    if (isOptionalEntry(optDeclaration, curCtx) && declNameOccursOnce(optDeclaration)) {
                         // Don't rename optional declarations
                         val tmp = replaceOptAndId(tmpDecl, declarationFeature, functionContext)
                         val result = List(Opt(trueF, transformRecursive(tmp, curCtx, isTopLevel, functionContext)))
@@ -2328,11 +2392,25 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     /**
      * Checks the declaration use map to see if there are multiple declarations with the same name.
      */
-    def declNameOccursOnce(optDeclaration: Opt[Declaration]): Boolean = {
+    def declNameOccursOnce(optDeclaration: Opt[Declaration], debug: Boolean = false): Boolean = {
         if (isFunctionForwardDeclaration(optDeclaration.entry.init)) {
-            !(optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1) || (optDeclaration.entry.init.exists(x => defuse.containsKey(x.entry.declarator.getId) && defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)))
+            if (debug) {
+                println(optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1))
+                println((optDeclaration.entry.init.exists(x => defuse.containsKey(x.entry.declarator.getId) && defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)))
+                print("")
+            }
+            !(/* optDeclaration.entry.init.exists(x => fwdDecls.filter(y => y.equals(x.entry.declarator.getId)).size > 1) || */ (optDeclaration.entry.init.exists(x => defuse.containsKey(x.entry.declarator.getId) && defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)))
         } else {
             !optDeclaration.entry.init.exists(x => defuseKeys.filter(y => y.equals(x.entry.declarator.getId)).size > 1)
+        }
+    }
+
+    def funcNameOccursOnce(optFunction: Opt[_], debug: Boolean = false): Boolean = {
+        optFunction match {
+            case o@Opt(ft, entry: FunctionDef) =>
+                defuseKeys.filter(y => y.equals(entry.declarator.getId)).size < 2
+            case o@Opt(ft, entry: NestedFunctionDef) =>
+                defuseKeys.filter(y => y.equals(entry.declarator.getId)).size < 2
         }
     }
 
@@ -2424,7 +2502,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             replaceOptAndId(par, currentContext, currentContext),
                             transformRecursive(replaceOptAndId(stmt, currentContext, currentContext), currentContext, false, currentContext))))
                     } else {
-                        if (!isMainFunction(fd.getName) && !features.isEmpty) {
+                        if (fd.getName.equals("sqlite3_transfer_bindings")) {
+                            print("")
+                        }
+                        if (!isMainFunction(fd.getName) && !(isOptionalEntry(optFunction, currentContext) && funcNameOccursOnce(optFunction))) {
                             // rename functions
                             features.map(x => Opt(trueF, FunctionDef(
                                 replaceOptAndId(spec, x, x),
@@ -2432,7 +2513,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 replaceOptAndId(par, x, x),
                                 transformRecursive(replaceOptAndId(stmt, x, x), x, false, x))))
                         } else {
-                            // don't rename functions if they are not variable [features.size == 0] or they are the main function
+                            // don't rename functions if they are not variable [features.size == 0] || [funcNameOccursOnce && features.size == 1] or they are the main function
                             features.map(x => Opt(trueF, FunctionDef(replaceOptAndId(spec, x, x), replaceOptAndId(decl, x, x), replaceOptAndId(par, x, x), transformRecursive(replaceOptAndId(stmt, x, x), x, false, x))))
                         }
                     }
@@ -2932,28 +3013,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-     * Returns whether given declaration is an extern declaration or not.
-     * @param decl
-     * @return
-     */
-    private def isExternDeclaration(decl: Opt[Declaration]): Boolean = {
-        return decl.entry.declSpecs.exists(x => x.entry.isInstanceOf[ExternSpecifier])
-    }
-
-    /**
-     * Returns whether given declaration is an optional declaration defined in an #ifdef directive.
-     * @param decl
-     * @return
-     */
-    private def isOptionalDeclaration(decl: Opt[Declaration], context: FeatureExpr): Boolean = {
-        return hasMoreContextInfo(decl.feature, context)
-    }
-
-    private def hasMoreContextInfo(feature: FeatureExpr, context: FeatureExpr): Boolean = {
-        feature.and(context).implies(context).isTautology() && !context.implies(feature.and(context)).isTautology()
-    }
-
-    /**
      * Converts a feature expression to a condition in C. #ifdef x64 becomes options.x64.
      */
     private def toCExpr(feature: FeatureExpr): Expr = feature match {
@@ -3074,43 +3133,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     presenceConditionNumberMap += (feature -> number)
                 })
             }
-        }
-    }
-
-    private def updateIdMap(feat: FeatureExpr) = {
-        if (!presenceConditionNumberMap.contains(feat)) {
-            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
-        }
-    }
-
-    /**
-     * Creates a prefix for identifiers from the presence condition under which they occur.
-     * Format is _x_ where x is an Integer which represents the presence condition.
-     */
-    private def getPrefixFromIdMap(feat: FeatureExpr): String = {
-        def getFromIdMap(feat: FeatureExpr): Int = {
-            updateIdMap(feat)
-            presenceConditionNumberMap.get(feat).get
-        }
-        "_" + getFromIdMap(feat) + "_"
-    }
-
-    /**
-     * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
-     * ifdeftoif transformation to retrieve the context of an already renamed identifier.
-     */
-    private def getFeatureForId(id: Int): Option[FeatureExpr] = {
-        if (presenceConditionNumberMap.size < id || id < 0) {
-            None
-        } else {
-            val it = presenceConditionNumberMap.iterator
-            while (it.hasNext) {
-                val next = it.next()
-                if (next._2.equals(id)) {
-                    return Some(next._1)
-                }
-            }
-            None
         }
     }
 
