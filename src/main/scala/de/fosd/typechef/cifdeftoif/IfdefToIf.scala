@@ -89,7 +89,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Suffix under which the ifdeftoif file is saved
     private val ifdeftoifFileSuffix = "_ifdeftoif.c"
     // Prefix for ifdeftoif feature values
-    private val featurePrefix = "f_"
+    private var featurePrefix = "f_"
     // Threshold for a list size for computation of cartesian product
     private val duplicationThreshold = 200
     // Data structure used to map Identifiers, which have to be renamed, to the presence conditions of the renamings
@@ -120,6 +120,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
     private var combineCounter = 0
+    // Determines of options are saved in an ifdeftoif option struct or just global variables
+    private val exportOptionsAsStruct = false
 
     /**
      * Indicates if switch statements are transformed in a safe way (duplication).
@@ -217,13 +219,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * the features inside the ifdeftoif option struct with values.
      */
     private def getInitialTranslationUnit(defExSet: Set[SingleFeatureExpr], featureConfigPath: String = ""): TranslationUnit = {
-        val structDeclaration = Opt(trueF, getOptionStruct(defExSet))
+        val structDeclaration = getOptionStruct(defExSet)
         if (!createFunctionsForModelChecking) {
-            TranslationUnit(List(structDeclaration, Opt(trueF, getInitFunction(defExSet, featureConfigPath))))
+            TranslationUnit(structDeclaration ++ List(Opt(trueF, getInitFunction(defExSet, featureConfigPath))))
         } else {
             val initialFunctions = getFunctionsForModelChecking()
             val initFunction = Opt(trueF, getModelCheckInitFunction(defExSet))
-            TranslationUnit(initialFunctions ++ List(structDeclaration, initFunction))
+            TranslationUnit(initialFunctions ++ structDeclaration ++ List(initFunction))
         }
     }
 
@@ -307,19 +309,28 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * @return
      */
     private def featureToAssignment(featureName: String, assignmentSource: Expr): Opt[ExprStatement] = {
-        Opt(trueF,
-            ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
-                PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
+        if (exportOptionsAsStruct) {
+            Opt(trueF,
+                ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
+                    PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
+        } else {
+            Opt(trueF,
+                ExprStatement(AssignExpr(Id(getFeatureName(featureName)), "=", Constant("0"))))
+        }
     }
 
     /**
      * Converts a set of FeatureExpressions into a struct declaration.
      */
-    private def getOptionStruct(defExSet: Set[SingleFeatureExpr]): Declaration = {
-        val structDeclList = defExSet.map(x => {
-            featureToStructDeclaration(x.feature)
-        }).toList
-        createDeclaration(structDeclList)
+    private def getOptionStruct(defExSet: Set[SingleFeatureExpr]): List[Opt[Declaration]] = {
+        if (exportOptionsAsStruct) {
+            val structDeclList = defExSet.map(x => {
+                featureToStructDeclaration(x.feature)
+            }).toList
+            List(Opt(trueF, createDeclaration(structDeclList)))
+        } else {
+            defExSet.map(x => Opt(trueF, Declaration(List(Opt(trueF, IntSpecifier())), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(getFeatureName(x.feature)), List()), List(), None))), List()))).toList
+        }
     }
 
     /**
@@ -391,11 +402,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      */
     def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = ""): String = {
         val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
-        val structDeclaration = Opt(trueF, getOptionStruct(featureSet))
+        val structDeclaration = getOptionStruct(featureSet)
         val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
         val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
 
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+        PrettyPrinter.printF(TranslationUnit(structDeclaration ++ List(externDeclaration, initFunction)), externOptionStructPath, prefix)
         externOptionStructPath
     }
 
@@ -424,11 +435,11 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * assigning selection states to features. The feature selection states are read from the given .config file path.
      */
     def writeExternIfdeftoIfStructT(assignments: List[(SingleFeatureExpr, Boolean)], defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = "") = {
-        val structDeclaration = Opt(trueF, getOptionStruct(featureExpressions))
+        val structDeclaration = getOptionStruct(featureExpressions)
         val externDeclaration = Opt(trueF, Declaration(List(Opt(trueF, ExternSpecifier()), Opt(trueF, StructOrUnionSpecifier(false, Some(Id(featureStructName)), None, List(), List()))), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()), List(), None)))))
         val initFunction = Opt(trueF, getInitFunctionT(assignments))
 
-        PrettyPrinter.printF(TranslationUnit(List(structDeclaration, externDeclaration, initFunction)), externOptionStructPath, prefix)
+        PrettyPrinter.printF(TranslationUnit(structDeclaration ++ List(externDeclaration, initFunction)), externOptionStructPath, prefix)
     }
 
     /**
@@ -713,6 +724,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * the featureModel, declUseMap etc.
      */
     def ifdeftoif(source_ast: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, fctFwdDecls: IdentityIdHashMap, featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty, outputStem: String = "unnamed", lexAndParseTime: Long = 0, writeStatistics: Boolean = true, newPath: String = "", typecheckResult: Boolean = true, useExternConfigStruct: Boolean = true): (Option[AST], Long, List[TypeChefError]) = {
+        if (!exportOptionsAsStruct) {
+            featurePrefix = featureStructInitializedName + "_"
+        }
+
         new File(path).mkdirs()
         init(fm)
 
@@ -2618,13 +2633,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * the features inside the ifdeftoif option struct with values.
      */
     private def getInitialTranslationUnit(defExSet: Set[SingleFeatureExpr], enabledFeatures: Set[SingleFeatureExpr]): TranslationUnit = {
-        val structDeclaration = Opt(trueF, getOptionStruct(defExSet))
+        val structDeclaration = getOptionStruct(defExSet)
         if (!createFunctionsForModelChecking) {
-            TranslationUnit(List(structDeclaration, Opt(trueF, getInitFunction(defExSet, enabledFeatures))))
+            TranslationUnit(structDeclaration ++ List(Opt(trueF, getInitFunction(defExSet, enabledFeatures))))
         } else {
             val initialFunctions = getFunctionsForModelChecking()
             val initFunction = Opt(trueF, getModelCheckInitFunction(defExSet))
-            TranslationUnit(initialFunctions ++ List(structDeclaration, initFunction))
+            TranslationUnit(initialFunctions ++ structDeclaration ++ List(initFunction))
         }
     }
 
