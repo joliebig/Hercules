@@ -3028,13 +3028,19 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * Converts a feature expression to a condition in C. #ifdef x64 becomes options.x64.
      */
     private def toCExpr(feature: FeatureExpr): Expr = feature match {
-        case d: DefinedExternal => PostfixExpr(Id(featureStructInitializedName),
-            PointerPostfixSuffix(".", Id(getFeatureName(d.feature))))
+        case d: DefinedExternal =>
+            if (exportOptionsAsStruct)
+                PostfixExpr(Id(featureStructInitializedName), PointerPostfixSuffix(".", Id(getFeatureName(d.feature))))
+            else
+                Id(getFeatureName(d.feature))
         case d: DefinedMacro => toCExpr(d.presenceCondition)
         case b: BDDFeatureExpr =>
             toCExpr(b,
-                (fName: String) => PostfixExpr(Id(featureStructInitializedName),
-                    PointerPostfixSuffix(".", Id(getFeatureName(fName))))
+                (fName: String) =>
+                    if (exportOptionsAsStruct)
+                      PostfixExpr(Id(featureStructInitializedName), PointerPostfixSuffix(".", Id(getFeatureName(fName))))
+                    else
+                        Id(getFeatureName(fName))
             )
         case a: And =>
             val l = a.clauses.toList
