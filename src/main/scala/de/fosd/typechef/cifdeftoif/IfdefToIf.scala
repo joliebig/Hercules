@@ -88,8 +88,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val ifdeftoifDefaultLabelName = "id2i_label"
     // Suffix under which the ifdeftoif file is saved
     private val ifdeftoifFileSuffix = "_ifdeftoif.c"
-    // Prefix for ifdeftoif feature values
-    private var featurePrefix = "f_"
     // Threshold for a list size for computation of cartesian product
     private val duplicationThreshold = 200
     // Data structure used to map Identifiers, which have to be renamed, to the presence conditions of the renamings
@@ -98,6 +96,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val idsToBeReplacedSecondRun: IdentityHashMap[Id, Set[FeatureExpr]] = new IdentityHashMap()
     private val createFunctionsForModelChecking = false
     private val externalDeclarations: java.util.HashMap[String, java.util.HashMap[List[Opt[DeclaratorExtension]], List[FeatureExpr]]] = new java.util.HashMap()
+    // Determines of options are saved in an ifdeftoif option struct or just global variables
+    private val exportOptionsAsStruct = false
+    // Prefix for ifdeftoif feature values
+    private var featurePrefix = "f_"
     private var externalDeclMsgs = ""
     /* Variables used for the ifdeftoif transformation process */
     private var astEnv: ASTEnv = null
@@ -120,9 +122,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     // Data structure used for exporting Identifier renaming data
     private var replaceId: IdentityHashMap[Id, FeatureExpr] = new IdentityHashMap()
     private var combineCounter = 0
-    // Determines of options are saved in an ifdeftoif option struct or just global variables
-    private val exportOptionsAsStruct = false
-
     /**
      * Indicates if switch statements are transformed in a safe way (duplication).
      * If this is set to true, we don't generate new switch statements for variability occuring in child nodes of the switch statement.
@@ -401,6 +400,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
      * assigning selection states to features. The feature selection states are read from the given .config file path.
      */
     def writeExternIfdeftoIfStruct(featureConfigPath: String, defaultConfigExpr: Expr = defaultConfigurationParameter, prefix: String = ""): String = {
+        if (!exportOptionsAsStruct) {
+            featurePrefix = featureStructInitializedName + "_"
+        }
+
         val featureSet = loadSerializedFeatureNames(serializedFeaturePath)
         val structDeclaration = getOptionStruct(featureSet)
         val initFunction = Opt(trueF, getInitFunction(featureSet, featureConfigPath, defaultConfigExpr))
@@ -1343,12 +1346,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         "_" + getFromIdMap(feat) + "_"
     }
 
-    private def updateIdMap(feat: FeatureExpr) = {
-        if (!presenceConditionNumberMap.contains(feat)) {
-            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
-        }
-    }
-
     /**
      * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
      * ifdeftoif transformation to retrieve the context of an already renamed identifier.
@@ -1365,6 +1362,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 }
             }
             None
+        }
+    }
+
+    private def updateIdMap(feat: FeatureExpr) = {
+        if (!presenceConditionNumberMap.contains(feat)) {
+            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
         }
     }
 
