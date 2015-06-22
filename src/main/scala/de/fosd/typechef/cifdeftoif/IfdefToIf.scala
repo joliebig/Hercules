@@ -314,7 +314,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
         } else {
             Opt(trueF,
-                ExprStatement(AssignExpr(Id(getFeatureName(featureName)), "=", Constant("0"))))
+                ExprStatement(AssignExpr(Id(getFeatureName(featureName)), "=", assignmentSource)))
         }
     }
 
