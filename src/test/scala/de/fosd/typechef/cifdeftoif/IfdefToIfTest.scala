@@ -31,8 +31,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/src/test/resources/ifdeftoif_testfiles/"
     val True = FeatureExprFactory.True
     var filesTransformed = 0
-    /* val tb = java.lang.management.ManagementFactory.getThreadMXBean
-  val time = tb.getCurrentThreadCpuTime // Type long; beware in nanoseconds */
 
     def appendToFile(fileName: String, textData: String) = {
         using(new FileWriter(fileName, true)) {
@@ -128,6 +126,16 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }
     }
 
+    private def writeToTextFile(name: String, content: String) {
+        val fw = new FileWriter(name)
+        fw.write(content)
+        fw.close()
+    }
+
+    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
+        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
+    }
+
     @Test
     def basic_gcc_test() {
         val file = new File(ifdeftoifTestPath + "basic_gcc_test.c")
@@ -153,7 +161,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val useDefMap = ts.getUseDeclMap
         val fwdDecls = getFunctionFwdDecls
         val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
-        print("--Parsed--")
+        print("-- Parsed in " + timeToParseAndTypeCheck + " ms --")
 
         if (!i.checkAstSilent(source_ast)) {
             println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
@@ -163,7 +171,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val startTransformation = System.currentTimeMillis()
         val new_ast = i.transformAst(source_ast, defUseMap, useDefMap, fwdDecls, timeToParseAndTypeCheck, enabledFeatures)
         val timeToTransform = System.currentTimeMillis() - startTransformation
-        print("\t--Transformed--\n")
+        print("\t-- Transformed in " + timeToTransform + " ms --\n")
 
         // println("\n" + PrettyPrinter.print(new_ast._1) + "\n\n")
 
@@ -233,6 +241,12 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4, 5)))
     }
 
+    @Test
+    def switch_case_default_3() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
+    }
+
     def testFileSemanticsComplete(file: File, inputs: List[Int], featureModel: FeatureModel = FeatureExprFactory.empty): Boolean = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -252,7 +266,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         val useDefMap = ts.getUseDeclMap
         val fwdDecls = getFunctionFwdDecls
         val timeToParseAndTypeCheck = System.currentTimeMillis() - startParsingAndTypeChecking
-        print("--Parsed--")
+        print("-- Parsed in " + timeToParseAndTypeCheck + " ms --")
 
         if (!i.checkAstSilent(source_ast)) {
             println("Please fix the type errors above in order to start the ifdeftoif transformation process!")
@@ -279,7 +293,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }).foldLeft(FeatureExprFactory.True)((fst, snd) => fst.and(snd))))
 
         val timeToTransform = System.currentTimeMillis() - startTransformation
-        print("\t--Transformed--\n")
+        print("\t-- Transformed in " + timeToTransform + " ms --\n")
 
         // println("\n" + PrettyPrinter.print(new_ast._1) + "\n\n")
 
@@ -350,12 +364,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     }
 
     @Test
-    def switch_case_default_3() {
-        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
-    }
-
-    @Test
     def variable_condition_test_1() {
         val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
         assert(testFileSemanticsComplete(file, List((0))))
@@ -370,6 +378,12 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     @Test
     def variable_condition_test_3() {
         val file = new File(ifdeftoifTestPath + "variable_condition_3.c")
+        assert(testFileSemanticsComplete(file, List((0))))
+    }
+
+    @Test
+    def very_big_struct_test() = {
+        val file = new File(ifdeftoifTestPath + "very_big_struct.c")
         assert(testFileSemanticsComplete(file, List((0))))
     }
 
@@ -527,6 +541,17 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         println(testAst(source_ast))
     }
 
+    def testAst(source_ast: TranslationUnit): String = {
+        typecheckTranslationUnit(source_ast)
+        val defUseMap = getDeclUseMap
+        val useDefMap = getUseDeclMap
+        val fwdDecls = getFunctionFwdDecls
+
+        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
+        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, fwdDecls, 0)._1
+        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
+    }
+
     @Ignore
     def array_test2 {
         val source_ast = getAST( """
@@ -650,17 +675,6 @@ static const char * const azCompileOpt[] = {
         println(testAst(source_ast))
     }
 
-    def testAst(source_ast: TranslationUnit): String = {
-        typecheckTranslationUnit(source_ast)
-        val defUseMap = getDeclUseMap
-        val useDefMap = getUseDeclMap
-        val fwdDecls = getFunctionFwdDecls
-
-        val optionsAst = i.generateIfdefOptionsTUnit(source_ast)
-        val newAst = i.transformAst(prepareAST(source_ast), defUseMap, useDefMap, fwdDecls, 0)._1
-        ("+++New Code+++\n" + PrettyPrinter.print(newAst))
-    }
-
     // Ignoring test for now, includes variable external declarations which should be renamed/removed by the user
     @Ignore
     def test_alex_1() {
@@ -775,42 +789,6 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
-    @Test
-    def test_alex_17() {
-        val file = new File(ifdeftoifTestPath + "17.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test
-    def test_alex_18() {
-        val file = new File(ifdeftoifTestPath + "18.c")
-        println(i.getAstFromFile(file))
-        val ast: TranslationUnit = testFile(file)._2
-        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
-        // the ast must not contain the search ast
-        // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
-        assert(!ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
-    }
-
-    @Test
-    def test_alex_19() {
-        val file = new File(ifdeftoifTestPath + "19.c")
-        println(i.getAstFromFile(file))
-        val ast: TranslationUnit = testFile(file)._2
-        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
-        // bug was/is that a referenced label (next_link) was deleted from the ast
-        val labelRef = GotoStatement(Id("next_link"))
-        val labelDef = LabelStatement(Id("next_link"), None)
-        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
-    }
-
-    @Ignore def test_typedef_function_usage() {
-        val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -895,14 +873,40 @@ static const char * const azCompileOpt[] = {
         }
     }
 
-    private def writeToTextFile(name: String, content: String) {
-        val fw = new FileWriter(name)
-        fw.write(content)
-        fw.close()
+    @Test
+    def test_alex_17() {
+        val file = new File(ifdeftoifTestPath + "17.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
     }
 
-    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
-        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
+    @Test
+    def test_alex_18() {
+        val file = new File(ifdeftoifTestPath + "18.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // the ast must not contain the search ast
+        // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
+        assert(!ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
+    }
+
+    @Test
+    def test_alex_19() {
+        val file = new File(ifdeftoifTestPath + "19.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // bug was/is that a referenced label (next_link) was deleted from the ast
+        val labelRef = GotoStatement(Id("next_link"))
+        val labelDef = LabelStatement(Id("next_link"), None)
+        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
+    }
+
+    @Ignore def test_typedef_function_usage() {
+        val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
     }
 
     @Ignore def busybox_file_tests() {
@@ -1053,23 +1057,6 @@ static const char * const azCompileOpt[] = {
         }
     }
 
-    def writeToFile(fileName: String, data: String) =
-        using(new FileWriter(fileName)) {
-            fileWriter => fileWriter.write(data)
-        }
-
-    /**
-     * Used for reading/writing to database, files, etc.
-     * Code From the book "Beginning Scala"
-     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
-     */
-    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
-        try {
-            f(param)
-        } finally {
-            param.close()
-        }
-
     private def transformDir(dirToAnalyse: File) {
         def transformPiFiles(dirToAnalyse: File) {
             if (filesTransformed < filesToAnalysePerRun) {
@@ -1096,6 +1083,23 @@ static const char * const azCompileOpt[] = {
         }
         transformPiFiles(dirToAnalyse)
     }
+
+    def writeToFile(fileName: String, data: String) =
+        using(new FileWriter(fileName)) {
+            fileWriter => fileWriter.write(data)
+        }
+
+    /**
+     * Used for reading/writing to database, files, etc.
+     * Code From the book "Beginning Scala"
+     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
+     */
+    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
+        try {
+            f(param)
+        } finally {
+            param.close()
+        }
 
     private def runIfdefToIfOnPi(file: File, featureModel: FeatureModel = FeatureExprFactory.empty) {
         if (filesTransformed < filesToAnalysePerRun) {
