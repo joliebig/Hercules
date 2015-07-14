@@ -291,10 +291,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             val featureConfigFile = new File(featureConfigPath)
             val (trueFeats, falseFeats, otherFeats) = ConfigurationHandling.getFeaturesFromConfiguration(featureConfigFile, fm, defExSet)
 
-            val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1"))).sortWith(_.toString < _.toString)
-            val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0"))).sortWith(_.toString < _.toString)
-            val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration)).sortWith(_.toString < _.toString)
-            exprStmts = trueExprs ++ otherExprs ++ falseExprs
+            val trueExprs = trueFeats.map(x => featureToAssignment(x.feature, Constant("1")))
+            val falseExprs = falseFeats.map(x => featureToAssignment(x.feature, Constant("0")))
+            val otherExprs = otherFeats.map(x => featureToAssignment(x.feature, defaultConfiguration))
+            exprStmts = (trueExprs ++ otherExprs ++ falseExprs).sortWith(_.toString < _.toString)
         } else {
             exprStmts = defExSet.toList.map(x => featureToAssignment(x.feature, defaultConfiguration))
         }
