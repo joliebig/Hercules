@@ -1,0 +1,3 @@
+c 1 CONFIG_ARCH_OMAP3
+p cnf 1 1
+-1 0
