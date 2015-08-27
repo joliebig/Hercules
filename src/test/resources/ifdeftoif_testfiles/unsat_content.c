@@ -8,3 +8,10 @@ int func()
 }
 
 #endif /* CONFIG_ARCH_OMAP3 */
+
+int main() {
+#ifdef CONFIG_ARCH_OMAP3
+    return 1;
+#endif
+    return 0;
+}

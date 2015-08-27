@@ -126,16 +126,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }
     }
 
-    private def writeToTextFile(name: String, content: String) {
-        val fw = new FileWriter(name)
-        fw.write(content)
-        fw.close()
-    }
-
-    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
-        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
-    }
-
     @Test
     def basic_gcc_test() {
         val file = new File(ifdeftoifTestPath + "basic_gcc_test.c")
@@ -229,24 +219,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
     }
 
-    @Test
-    def switch_case_2() {
-        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4)))
-    }
-
-    @Test
-    def switch_case_default_2() {
-        val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4, 5)))
-    }
-
-    @Test
-    def switch_case_default_3() {
-        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
-    }
-
     def testFileSemanticsComplete(file: File, inputs: List[Int], featureModel: FeatureModel = FeatureExprFactory.empty): Boolean = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -257,6 +229,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }
         val startParsingAndTypeChecking = System.currentTimeMillis()
         val ast = i.getAstFromFile(file)
+        i.setFM(featureModel)
         if (ast == null) assert(false, "Could not parse input file " + file.toPath)
         val source_ast = i.prepareASTforIfdef(prepareAST(ast))
         val ts = getTypeSystem(source_ast)
@@ -274,8 +247,8 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         }
 
         val startTransformation = System.currentTimeMillis()
-        val new_ast = i.testAst(source_ast, defUseMap, useDefMap, fwdDecls, timeToParseAndTypeCheck)
-        //println(PrettyPrinter.print(source_ast) + "\n\n" + ast)
+        val new_ast = i.testAst(source_ast, defUseMap, useDefMap, fwdDecls, timeToParseAndTypeCheck, Set(), featureModel)
+        //println(PrettyPrinter.print(new_ast._1) + "\n\n")
         val testTriple = new_ast._2.map(x => (x, x.map(y => {
             y match {
                 case (fExpr, true) =>
@@ -305,7 +278,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
 
 
         var testSuccessful = true
-
         for (param <- testTriple) {
             // new_ast._1 is the generated ast
             // can we compile (gcc) and execute?
@@ -361,6 +333,35 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
             println("Could not remove generated binary " + file)
         }
         return testSuccessful
+    }
+
+    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
+        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
+    }
+
+    @Test
+    def switch_case_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4)))
+    }
+
+    @Test
+    def switch_case_default_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4, 5)))
+    }
+
+    @Test
+    def switch_case_default_3() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
+    }
+
+    @Test
+    def unsat_content() {
+        val file = new File(ifdeftoifTestPath + "unsat_content.c")
+        val featureModel = FeatureExprLib.featureModelFactory().createFromDimacsFile(ifdeftoifTestPath + "unsat_content.dimacs", "")
+        assert(testFileSemanticsComplete(file, List(0), featureModel))
     }
 
     @Test
@@ -789,6 +790,84 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
+    @Test
+    def test_alex_17() {
+        val file = new File(ifdeftoifTestPath + "17.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Test
+    def test_alex_18() {
+        val file = new File(ifdeftoifTestPath + "18.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // the ast must not contain the search ast
+        // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
+        assert(!ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
+    }
+
+    @Test
+    def test_alex_19() {
+        val file = new File(ifdeftoifTestPath + "19.c")
+        println(i.getAstFromFile(file))
+        val ast: TranslationUnit = testFile(file)._2
+        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
+        // bug was/is that a referenced label (next_link) was deleted from the ast
+        val labelRef = GotoStatement(Id("next_link"))
+        val labelDef = LabelStatement(Id("next_link"), None)
+        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
+    }
+
+    @Ignore def test_typedef_function_usage() {
+        val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
+        println(i.getAstFromFile(file))
+        testFile(file)
+    }
+
+    @Ignore def busybox_file_tests() {
+        val fs = File.separator
+        val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "correct_password.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "lineedit.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "procps.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "getty.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "passwd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "sulogin.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "brctl.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "httpd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ifconfig.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "inetd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ip.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "nc.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "ps.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "top.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "logread.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "syslogd_and_logger.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fbset.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fdisk.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fsck_minix.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mkfs_vfat.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mount.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "telnetd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "tftp.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "common.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "dhcpc.pi"))
+        val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
+            busyBoxPath + fs + "busybox" + fs + "featureModel"))
+        files.foreach(x => {
+            testFile(x, featureModel = busyboxFM)
+            println("\n")
+        })
+    }
+
+    @Ignore def multiple_declarations_test() {
+        val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "2.c"))
+        println(ast)
+        testFile(new File(ifdeftoifTestPath + "2.c"))
+    }
+
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -873,82 +952,10 @@ static const char * const azCompileOpt[] = {
         }
     }
 
-    @Test
-    def test_alex_17() {
-        val file = new File(ifdeftoifTestPath + "17.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Test
-    def test_alex_18() {
-        val file = new File(ifdeftoifTestPath + "18.c")
-        println(i.getAstFromFile(file))
-        val ast: TranslationUnit = testFile(file)._2
-        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
-        // the ast must not contain the search ast
-        // in the search ast, a label is used at the end of a compound statement, which is forbidden by gcc
-        assert(!ast.toString.contains(search.toString), "GCC Error: label at end of compound statement")
-    }
-
-    @Test
-    def test_alex_19() {
-        val file = new File(ifdeftoifTestPath + "19.c")
-        println(i.getAstFromFile(file))
-        val ast: TranslationUnit = testFile(file)._2
-        val search = CompoundStatement(List(Opt(FeatureExprFactory.True, LabelStatement(Id("skip"), None))))
-        // bug was/is that a referenced label (next_link) was deleted from the ast
-        val labelRef = GotoStatement(Id("next_link"))
-        val labelDef = LabelStatement(Id("next_link"), None)
-        assert(!ast.toString.contains(labelRef.toString) || ast.toString.contains(labelDef.toString), "label \"next_link\" removed but still referenced")
-    }
-
-    @Ignore def test_typedef_function_usage() {
-        val file = new File(ifdeftoifTestPath + "typedef_function_usage.c")
-        println(i.getAstFromFile(file))
-        testFile(file)
-    }
-
-    @Ignore def busybox_file_tests() {
-        val fs = File.separator
-        val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "correct_password.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "lineedit.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "procps.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "getty.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "passwd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "sulogin.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "brctl.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "httpd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ifconfig.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "inetd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ip.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "nc.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "ps.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "top.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "logread.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "syslogd_and_logger.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fbset.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fdisk.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fsck_minix.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mkfs_vfat.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mount.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "telnetd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "tftp.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "common.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "dhcpc.pi"))
-        val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
-            busyBoxPath + fs + "busybox" + fs + "featureModel"))
-        files.foreach(x => {
-            testFile(x, featureModel = busyboxFM)
-            println("\n")
-        })
-    }
-
-    @Ignore def multiple_declarations_test() {
-        val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "2.c"))
-        println(ast)
-        testFile(new File(ifdeftoifTestPath + "2.c"))
+    private def writeToTextFile(name: String, content: String) {
+        val fw = new FileWriter(name)
+        fw.write(content)
+        fw.close()
     }
 
     @Ignore def conditional_declaration_assignments() {
