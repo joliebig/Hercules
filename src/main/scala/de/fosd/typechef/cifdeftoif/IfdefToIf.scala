@@ -323,6 +323,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         }
     }
 
+    def getFeatureName(name: String): String = {
+        featurePrefix + name.toLowerCase
+    }
+
     /**
      * Converts a set of FeatureExpressions into a struct declaration.
      */
@@ -335,10 +339,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         } else {
             defExSet.map(x => Opt(trueF, Declaration(List(Opt(trueF, IntSpecifier())), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(getFeatureName(x.feature)), List()), List(), None))), List()))).toList.sortWith(_.toString < _.toString)
         }
-    }
-
-    def getFeatureName(name: String): String = {
-        featurePrefix + name.toLowerCase
     }
 
     /**
@@ -1125,9 +1125,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     l.flatMap(x => x match {
                         case o@Opt(ft: FeatureExpr, entry) =>
                             val newCtx = ft.and(currentContext)
-                            if (!newCtx.isSatisfiable(fm)) {
-                                List()
-                            } else if (o.entry.isInstanceOf[Declaration] && isExternDeclaration(o.asInstanceOf[Opt[Declaration]]) && isOptionalEntry(o.asInstanceOf[Opt[Declaration]], currentContext)) {
+                            if (o.entry.isInstanceOf[Declaration] && isExternDeclaration(o.asInstanceOf[Opt[Declaration]]) && isOptionalEntry(o.asInstanceOf[Opt[Declaration]], currentContext)) {
                                 val optDecl = o.asInstanceOf[Opt[Declaration]]
                                 val declarationName = retrieveDeclName(optDecl)
                                 val extensions = removeIdNames(replaceOptAndId(retrieveDeclSignature(optDecl), newCtx, trueF))
@@ -1140,6 +1138,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                 } else {
                                     externalDeclarations.get(declarationName).put(extensions, List(newCtx))
                                 }
+                            }
+                            if (!newCtx.isSatisfiable(fm)) {
+                                List()
                             } else {
                                 List(prepareASTforIfdefHelper(Opt(newCtx, entry), newCtx))
                             }
@@ -1334,6 +1335,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         "_" + getFromIdMap(feat) + "_"
     }
 
+    private def updateIdMap(feat: FeatureExpr) = {
+        if (!presenceConditionNumberMap.contains(feat)) {
+            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
+        }
+    }
+
     /**
      * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
      * ifdeftoif transformation to retrieve the context of an already renamed identifier.
@@ -1350,12 +1357,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 }
             }
             None
-        }
-    }
-
-    private def updateIdMap(feat: FeatureExpr) = {
-        if (!presenceConditionNumberMap.contains(feat)) {
-            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
         }
     }
 

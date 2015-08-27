@@ -68,6 +68,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         val parseFM = opt.getSmallFeatureModel().and(opt.getLocalFeatureModel).and(opt.getFilePresenceCondition)
         opt.setSmallFeatureModel(parseFM) //otherwise the lexer does not get the updated feature model with file presence conditions
         opt.setFullFeatureModel(fullFM) //otherwise the lexer does not get the updated feature model with file presence conditions
+        i.setFM(fullFM)
         if (!opt.getFilePresenceCondition.isSatisfiable(fullFM)) {
             println("file has contradictory presence condition. existing.") //otherwise this can lead to strange parser errors, because True is satisfiable, but anything else isn't
             return
