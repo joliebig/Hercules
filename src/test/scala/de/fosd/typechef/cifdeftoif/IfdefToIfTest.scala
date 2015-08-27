@@ -219,6 +219,43 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
         assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
     }
 
+    @Test
+    def switch_case_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4)))
+    }
+
+    @Test
+    def switch_case_default_2() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4, 5)))
+    }
+
+    @Test
+    def switch_case_default_3() {
+        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
+        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
+    }
+
+    @Test
+    def unsat_content() {
+        val file = new File(ifdeftoifTestPath + "unsat_content.c")
+        val featureModel = FeatureExprLib.featureModelFactory().createFromDimacsFile(ifdeftoifTestPath + "unsat_content.dimacs", "")
+        assert(testFileSemanticsComplete(file, List(0), featureModel))
+    }
+
+    @Test
+    def variable_condition_test_1() {
+        val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
+        assert(testFileSemanticsComplete(file, List((0))))
+    }
+
+    @Test
+    def variable_condition_test_2() {
+        val file = new File(ifdeftoifTestPath + "variable_condition_2.c")
+        assert(testFileSemanticsComplete(file, List((0))))
+    }
+
     def testFileSemanticsComplete(file: File, inputs: List[Int], featureModel: FeatureModel = FeatureExprFactory.empty): Boolean = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -248,7 +285,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
 
         val startTransformation = System.currentTimeMillis()
         val new_ast = i.testAst(source_ast, defUseMap, useDefMap, fwdDecls, timeToParseAndTypeCheck, Set(), featureModel)
-        //println(PrettyPrinter.print(new_ast._1) + "\n\n")
+        //println("\n\n" + PrettyPrinter.print(new_ast._1) + "\n\n")
         val testTriple = new_ast._2.map(x => (x, x.map(y => {
             y match {
                 case (fExpr, true) =>
@@ -333,47 +370,6 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
             println("Could not remove generated binary " + file)
         }
         return testSuccessful
-    }
-
-    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
-        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
-    }
-
-    @Test
-    def switch_case_2() {
-        val file = new File(ifdeftoifTestPath + "switch_case_2.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4)))
-    }
-
-    @Test
-    def switch_case_default_2() {
-        val file = new File(ifdeftoifTestPath + "switch_case_default_2.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3, 4, 5)))
-    }
-
-    @Test
-    def switch_case_default_3() {
-        val file = new File(ifdeftoifTestPath + "switch_case_default_3.c")
-        assert(testFileSemanticsComplete(file, List(0, 1, 2, 3)))
-    }
-
-    @Test
-    def unsat_content() {
-        val file = new File(ifdeftoifTestPath + "unsat_content.c")
-        val featureModel = FeatureExprLib.featureModelFactory().createFromDimacsFile(ifdeftoifTestPath + "unsat_content.dimacs", "")
-        assert(testFileSemanticsComplete(file, List(0), featureModel))
-    }
-
-    @Test
-    def variable_condition_test_1() {
-        val file = new File(ifdeftoifTestPath + "variable_condition_1.c")
-        assert(testFileSemanticsComplete(file, List((0))))
-    }
-
-    @Test
-    def variable_condition_test_2() {
-        val file = new File(ifdeftoifTestPath + "variable_condition_2.c")
-        assert(testFileSemanticsComplete(file, List((0))))
     }
 
     @Test
@@ -826,48 +822,6 @@ static const char * const azCompileOpt[] = {
         testFile(file)
     }
 
-    @Ignore def busybox_file_tests() {
-        val fs = File.separator
-        val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "correct_password.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "lineedit.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "procps.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "getty.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "passwd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "sulogin.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "brctl.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "httpd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ifconfig.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "inetd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ip.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "nc.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "ps.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "top.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "logread.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "syslogd_and_logger.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fbset.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fdisk.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fsck_minix.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mkfs_vfat.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mount.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "telnetd.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "tftp.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "common.pi")
-            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "dhcpc.pi"))
-        val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
-            busyBoxPath + fs + "busybox" + fs + "featureModel"))
-        files.foreach(x => {
-            testFile(x, featureModel = busyboxFM)
-            println("\n")
-        })
-    }
-
-    @Ignore def multiple_declarations_test() {
-        val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "2.c"))
-        println(ast)
-        testFile(new File(ifdeftoifTestPath + "2.c"))
-    }
-
     def testFile(file: File, writeAst: Boolean = false, featureModel: FeatureModel = FeatureExprFactory.empty): (Int, TranslationUnit) = {
         new File(singleFilePath).mkdirs()
         val fileNameWithoutExtension = i.getFileNameWithoutExtension(file)
@@ -952,10 +906,56 @@ static const char * const azCompileOpt[] = {
         }
     }
 
+    def getTypeSystem(ast: AST): CTypeSystemFrontend with CTypeCache with CDeclUse = {
+        new CTypeSystemFrontend(ast.asInstanceOf[TranslationUnit]) with CTypeCache with CDeclUse
+    }
+
     private def writeToTextFile(name: String, content: String) {
         val fw = new FileWriter(name)
         fw.write(content)
         fw.close()
+    }
+
+    @Ignore def busybox_file_tests() {
+        val fs = File.separator
+        val files = List(new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "archival" + fs + "libarchive" + fs + "header_verbose_list.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "correct_password.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "lineedit.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "libbb" + fs + "procps.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "getty.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "passwd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "loginutils" + fs + "sulogin.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "brctl.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "httpd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ifconfig.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "inetd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "ip.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "nc.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "ps.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "procps" + fs + "top.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "logread.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "sysklogd" + fs + "syslogd_and_logger.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fbset.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fdisk.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "fsck_minix.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mkfs_vfat.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "util-linux" + fs + "mount.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "telnetd.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "tftp.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "common.pi")
+            , new File(busyBoxPath + fs + "busybox-1.18.5" + fs + "networking" + fs + "udhcp" + fs + "dhcpc.pi"))
+        val busyboxFM: FeatureModel = FeatureExprLib.featureModelFactory.create(new FeatureExprParser(FeatureExprLib.l).parseFile(
+            busyBoxPath + fs + "busybox" + fs + "featureModel"))
+        files.foreach(x => {
+            testFile(x, featureModel = busyboxFM)
+            println("\n")
+        })
+    }
+
+    @Ignore def multiple_declarations_test() {
+        val ast = i.getAstFromFile(new File(ifdeftoifTestPath + "2.c"))
+        println(ast)
+        testFile(new File(ifdeftoifTestPath + "2.c"))
     }
 
     @Ignore def conditional_declaration_assignments() {
@@ -1064,6 +1064,23 @@ static const char * const azCompileOpt[] = {
         }
     }
 
+    def writeToFile(fileName: String, data: String) =
+        using(new FileWriter(fileName)) {
+            fileWriter => fileWriter.write(data)
+        }
+
+    /**
+     * Used for reading/writing to database, files, etc.
+     * Code From the book "Beginning Scala"
+     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
+     */
+    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
+        try {
+            f(param)
+        } finally {
+            param.close()
+        }
+
     private def transformDir(dirToAnalyse: File) {
         def transformPiFiles(dirToAnalyse: File) {
             if (filesTransformed < filesToAnalysePerRun) {
@@ -1090,23 +1107,6 @@ static const char * const azCompileOpt[] = {
         }
         transformPiFiles(dirToAnalyse)
     }
-
-    def writeToFile(fileName: String, data: String) =
-        using(new FileWriter(fileName)) {
-            fileWriter => fileWriter.write(data)
-        }
-
-    /**
-     * Used for reading/writing to database, files, etc.
-     * Code From the book "Beginning Scala"
-     * http://www.amazon.com/Beginning-Scala-David-Pollak/dp/1430219890
-     */
-    def using[A <: {def close() : Unit}, B](param: A)(f: A => B): B =
-        try {
-            f(param)
-        } finally {
-            param.close()
-        }
 
     private def runIfdefToIfOnPi(file: File, featureModel: FeatureModel = FeatureExprFactory.empty) {
         if (filesTransformed < filesToAnalysePerRun) {
