@@ -1,8 +1,8 @@
 package de.fosd.typechef.cifdeftoif
 
-import de.fosd.typechef.conditional.{One, Opt}
+import de.fosd.typechef.conditional.Opt
 import de.fosd.typechef.featureexpr.{FeatureExpr, FeatureExprFactory}
-import de.fosd.typechef.parser.c.{IfStatement, _}
+import de.fosd.typechef.parser.c._
 
 trait IfdefToIfPerformanceInterface {
 
@@ -10,8 +10,12 @@ trait IfdefToIfPerformanceInterface {
         stmts
     }
 
-    def insertPerfIntoIf(ifstmt: IfStatement, context: FeatureExpr): IfStatement = {
-        ifstmt
+    def insertIntoCmpStmt(cmpstmt: CompoundStatement, context: FeatureExpr): CompoundStatement = {
+        cmpstmt
+    }
+
+    def insertIntoMain(cmpstmt: CompoundStatement): CompoundStatement = {
+        cmpstmt
     }
 
 }
@@ -24,18 +28,29 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     val functionEndName = "id2iperf_time_end"
 
     override def insertIntoIf(stmts: List[Opt[Statement]], context: FeatureExpr): List[Opt[Statement]] = {
+        if (context == trueF3) {
+            // Don't insert anything
+            return stmts
+        }
         val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ context.toTextExpr ++ "\"")))))))))
         val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List()))))
         return List(Opt(trueF3, beforeStmt)) ++ stmts ++ List(Opt(trueF3, afterStmt))
     }
 
-    override def insertPerfIntoIf(ifstmt: IfStatement, context: FeatureExpr): IfStatement = {
-        ifstmt match {
-            case IfStatement(One(expr), thenBranch, elifs, elseBranch) =>
-
+    override def insertIntoCmpStmt(cmpstmt: CompoundStatement, context: FeatureExpr): CompoundStatement = {
+        if (context == trueF3) {
+            // Don't insert anything
+            return cmpstmt
         }
-        ifstmt
+        val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ context.toTextExpr ++ "\"")))))))))
+        val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List()))))
+        return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ cmpstmt.innerStatements ++ List(Opt(trueF3, afterStmt)))
     }
 
+    override def insertIntoMain(cmpstmt: CompoundStatement): CompoundStatement = {
+        val startStmt = ExprStatement(PostfixExpr(Id(functionStartName), FunctionCall(ExprList(List()))))
+        val endStmt = ExprStatement(PostfixExpr(Id(functionEndName), FunctionCall(ExprList(List()))))
+        return CompoundStatement(List(Opt(trueF3, startStmt)) ++ cmpstmt.innerStatements ++ List(Opt(trueF3, endStmt)))
+    }
 
 }
