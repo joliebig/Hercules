@@ -7,12 +7,18 @@ trait IOUtilities {
 
     import java.io.FileWriter
 
-    def using[A <: {def close()}, B](param: A)(f: A => B): B =
-        try {
-            f(param)
-        } finally {
-            param.close()
+    def getFileContent(fileName: String): String = {
+        //scala.io.Source.fromFile(fileName).getLines.mkString("\n")
+        scala.io.Source.fromFile(fileName).mkString
+    }
+
+    def addToFile(fileName: String, textData: String) {
+        if (new File(fileName).exists) {
+            appendToFile(fileName, textData)
+        } else {
+            writeToFile(fileName, textData)
         }
+    }
 
     def writeToFile(fileName: String, data: String) {
         using(new FileWriter(fileName)) {
@@ -28,11 +34,10 @@ trait IOUtilities {
         }
     }
 
-    def addToFile(fileName: String, textData: String) {
-        if (new File(fileName).exists) {
-            appendToFile(fileName, textData)
-        } else {
-            writeToFile(fileName, textData)
+    def using[A <: {def close()}, B](param: A)(f: A => B): B =
+        try {
+            f(param)
+        } finally {
+            param.close()
         }
-    }
 }

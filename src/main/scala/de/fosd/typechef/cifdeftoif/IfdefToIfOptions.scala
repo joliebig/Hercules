@@ -13,8 +13,10 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
     private final val F_SIMPLE_SWITCH_TRANSFORMATION: Char = Options.genOptionId
     private final val F_FEATURECONFIG: Char = Options.genOptionId
     private final val F_DECLUSE: Char = Options.genOptionId
+    private final val F_PERFORMANCE: Char = Options.genOptionId
     private final val F_MD: Char = Options.genOptionId // dependency output option of gcc
 
+    var performance: Boolean = false
     var ifdeftoif: Boolean = false
     var ifdeftoifstatistics: Boolean = false
     var ifdeftoifnocheck: Boolean = false
@@ -46,6 +48,8 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
                     "Save file for load-time feature configuration at given filename."),
                 new Options.Option("decluse", LongOpt.NO_ARGUMENT, F_DECLUSE, null,
                     "Test the declaration use map."),
+                new Options.Option("performance", LongOpt.NO_ARGUMENT, F_PERFORMANCE, null,
+                    "Test the declaration use map."),
                 new Options.Option("MD", LongOpt.REQUIRED_ARGUMENT, F_MD, "file",
                     "Export dependency list.")
             ))
@@ -76,6 +80,11 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
             parse = true
             typecheck = true
             decluse = true
+        } else if (c == F_PERFORMANCE) {
+            parse = true
+            typecheck = true
+            ifdeftoif = true
+            performance = true
         } else if (c == F_MD) {
             md = g.getOptarg
         } else if (c == F_SIMPLE_SWITCH_TRANSFORMATION) {

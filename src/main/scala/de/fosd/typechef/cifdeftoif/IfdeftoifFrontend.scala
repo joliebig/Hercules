@@ -94,7 +94,13 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
         val in = if (ast == null) lex(opt) else null
 
         if (opt.ifdeftoifstatistics) {
-            i = new IfdefToIf with IfdefToIfStatistics
+            if (opt.performance) {
+                i = new IfdefToIf with IfdefToIfStatistics with IfdefToIfPerformance
+            } else {
+                i = new IfdefToIf with IfdefToIfStatistics
+            }
+        } else if (opt.performance) {
+            i = new IfdefToIf with IfdefToIfPerformance
         }
 
         if (opt.parse) {
@@ -160,6 +166,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 ast = ast_replaced
                             }
                             i.setSimpleSwitchTransformation(opt.simple_switch_transformation)
+                            i.setPerformance(opt.performance)
                             stopWatch.start("ifdeftoif")
                             println("ifdeftoif started")
                             i.setParseFM(parseFM)
@@ -281,11 +288,6 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
             currentPeriod = period
         }
 
-        private def genId(): Int = {
-            currentPeriodId += 1;
-            currentPeriodId
-        }
-
         def get(period: String): Long = times.filter(v => v._1._2 == period).headOption.map(_._2).getOrElse(0)
 
         override def toString = {
@@ -303,6 +305,11 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
         private def measure(checkpoint: String) {
             times = times + ((genId(), checkpoint) -> System.currentTimeMillis())
+        }
+
+        private def genId(): Int = {
+            currentPeriodId += 1;
+            currentPeriodId
         }
     }
 }
