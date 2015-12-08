@@ -1,3 +1,5 @@
+#ifndef STACK_C
+#define STACK_C
 #include <stdlib.h>
 #include "stack.h"
 
@@ -42,6 +44,8 @@ int stack_content(pstack *s, char* result) {
     int i = 0;
     int strlength = 0;
     while (!is_empty(tmp)) {
+        //content[i] = malloc((strlen(tmp->data)+1) * sizeof(char*));
+        //strcpy(content[i], tmp->data);
         content[i] = tmp->data;
         i++;
         // increase string length counter for malloc later
@@ -49,14 +53,16 @@ int stack_content(pstack *s, char* result) {
         tmp = tmp->next;
     }
     // add spaces für '&'s to string length counter
-    strlength = strlength + i - 1;
+    strlength = strlength + i;
     int j;
     for (j=0; j < i-1; j++) {
         strcat(result, content[j]);
         strcat(result, "&");
     }
     strcat(result, content[i-1]);
-    free(content);
+    result[strlength] = '\0';
+    content = realloc(content, i * sizeof(char*));
+    //free(content);
     return strlength;
 }
 
@@ -71,3 +77,4 @@ void push(pstack *s, void *new_num)
     //stack_elements++;
     *s = new_node;
 }
+#endif

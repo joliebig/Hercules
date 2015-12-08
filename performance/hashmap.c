@@ -1,10 +1,11 @@
+#ifndef HASHMAP_C
+#define HASHMAP_C
 /*
  * Generic map implementation.
  */
 #include "hashmap.h"
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 
 #define INITIAL_SIZE (256)
@@ -396,3 +397,4 @@ int hashmap_length(map_t in){
   if(m != NULL) return m->size;
   else return 0;
 }
+#endif

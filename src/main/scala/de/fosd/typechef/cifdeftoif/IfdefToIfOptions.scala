@@ -14,6 +14,7 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
     private final val F_FEATURECONFIG: Char = Options.genOptionId
     private final val F_DECLUSE: Char = Options.genOptionId
     private final val F_PERFORMANCE: Char = Options.genOptionId
+    private final val F_EXTERNOPTIONS: Char = Options.genOptionId
     private final val F_MD: Char = Options.genOptionId // dependency output option of gcc
 
     var performance: Boolean = false
@@ -22,6 +23,7 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
     var ifdeftoifnocheck: Boolean = false
     var simple_switch_transformation: Boolean = false
     var decluse: Boolean = false
+    var externoptions: Boolean = true
     var featureConfig: Boolean = false
 
     private var featureConfigFile: String = ""
@@ -49,7 +51,9 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
                 new Options.Option("decluse", LongOpt.NO_ARGUMENT, F_DECLUSE, null,
                     "Test the declaration use map."),
                 new Options.Option("performance", LongOpt.NO_ARGUMENT, F_PERFORMANCE, null,
-                    "Test the declaration use map."),
+                    "Adds functions and function calls into the code for performance measurements of features."),
+                new Options.Option("externoptions", LongOpt.NO_ARGUMENT, F_EXTERNOPTIONS, null,
+                    "Ifdeftoif transformation feature variables are exported into an external optionstruct.h file instead of adding them to the beginning of the transformed file."),
                 new Options.Option("MD", LongOpt.REQUIRED_ARGUMENT, F_MD, "file",
                     "Export dependency list.")
             ))
@@ -67,6 +71,7 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
             parse = true
             typecheck = true
             ifdeftoif = true
+            externoptions = true
         } else if (c == F_FEATURECONFIG) {
             checkFileExists(g.getOptarg)
             featureConfigFile = g.getOptarg
@@ -85,6 +90,12 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
             typecheck = true
             ifdeftoif = true
             performance = true
+            externoptions = false
+        } else if (c == F_EXTERNOPTIONS) {
+            parse = true
+            typecheck = true
+            ifdeftoif = true
+            externoptions = true
         } else if (c == F_MD) {
             md = g.getOptarg
         } else if (c == F_SIMPLE_SWITCH_TRANSFORMATION) {

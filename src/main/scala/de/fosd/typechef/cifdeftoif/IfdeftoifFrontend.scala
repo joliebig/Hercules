@@ -175,7 +175,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             val fwdDecls = ts.getFunctionFwdDecls
                             val fileName = i.basename(opt.getOutputStem())
                             val checkIfdefToIfResult = !opt.ifdeftoifnocheck
-                            val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fwdDecls, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, true)
+                            val tuple = i.ifdeftoif(ast, defUseMap, useDefMap, fwdDecls, fullFM, opt.getOutputStem(), stopWatch.get("lexing") + stopWatch.get("parsing"), opt.ifdeftoifstatistics, "", typecheckResult = checkIfdefToIfResult, opt.externoptions)
                             tuple._1 match {
                                 case None =>
                                     println("!! Transformation of " ++ fileName ++ " unsuccessful because of type errors in transformation result, see ../ifdeftoif/type_errors.txt and ../ifdeftoif/externalDeclarations.txt !!")
