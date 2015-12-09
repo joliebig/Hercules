@@ -2705,6 +2705,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     return id.name.startsWith(featurePrefix)
                 case One(UnaryOpExpr("!", id: Id)) =>
                     return id.name.startsWith(featurePrefix)
+                case _ =>
+                    return false
             }
         }
     }

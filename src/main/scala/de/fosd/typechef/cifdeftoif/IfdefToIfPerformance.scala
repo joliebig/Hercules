@@ -44,7 +44,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     }
 
     override def insertPerfFunctCalls(cmpstmt: CompoundStatement, context: FeatureExpr): CompoundStatement = {
-        if (context == trueF3) {
+        if (context == trueF3 || cmpstmt.innerStatements.isEmpty) {
             // Don't insert anything
             return cmpstmt
         }
@@ -66,6 +66,10 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     }
 
     override def insertPerfMainFunctCalls(cmpstmt: CompoundStatement): CompoundStatement = {
+        if (cmpstmt.innerStatements.isEmpty) {
+            // Don't insert anything
+            return cmpstmt
+        }
         val startStmt = ExprStatement(PostfixExpr(Id(functionStartName), FunctionCall(ExprList(List()))))
         val last = cmpstmt.innerStatements.last
         if (last.entry.isInstanceOf[ReturnStatement]) {
@@ -92,6 +96,8 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         first match {
             case Opt(trueF3, ExprStatement(PostfixExpr(Id(functionBeforeName), fc: FunctionCall))) =>
                 return stmts.drop(1)
+            case _ =>
+                return stmts
         }
         return stmts
     }
@@ -101,6 +107,8 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         last match {
             case Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List()))))) =>
                 return stmts.take(stmts.size - 1)
+            case _ =>
+                return stmts
         }
         return stmts
     }
