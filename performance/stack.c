@@ -55,11 +55,11 @@ int stack_content(pstack *s, char* result) {
     // add spaces für '&'s to string length counter
     strlength = strlength + i;
     int j;
-    for (j=0; j < i-1; j++) {
+    for (j=i-1; j > 0; j--) {
         strcat(result, content[j]);
-        strcat(result, "&");
+        strcat(result, "#");
     }
-    strcat(result, content[i-1]);
+    strcat(result, content[0]);
     result[strlength] = '\0';
     content = realloc(content, i * sizeof(char*));
     //free(content);

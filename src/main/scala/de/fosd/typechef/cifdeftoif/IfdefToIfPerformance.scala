@@ -48,7 +48,9 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
             // Don't insert anything
             return cmpstmt
         }
-        val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ context.toTextExpr ++ "\"")))))))))
+        val regexPattern = "(defined|definedEx)\\(([a-zA-Z_0-9]+)\\)".r
+        val featureString = regexPattern replaceAllIn(context.toTextExpr, "$2")
+        val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ featureString ++ "\"")))))))))
         val last = cmpstmt.innerStatements.last
         if (last.entry.isInstanceOf[ReturnStatement]) {
             val currentReturn = last.entry.asInstanceOf[ReturnStatement]
