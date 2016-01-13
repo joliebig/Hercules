@@ -360,6 +360,10 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     List())))))
     }
 
+    def getFeatureName(name: String): String = {
+        featurePrefix + name.toLowerCase
+    }
+
     /**
       * Converts a list of StructDeclarations into a Declaration. Ex: List(int config_x64) -> struct ifdefoptions {int config_x64;} id2i;
       * @param structDeclList
@@ -370,10 +374,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             StructOrUnionSpecifier(false, Some(Id(featureStructName)), Some(structDeclList), List(), List()))),
             List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()),
                 List(), None))))
-    }
-
-    def getFeatureName(name: String): String = {
-        featurePrefix + name.toLowerCase
     }
 
     /**
@@ -3457,7 +3457,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private def ifdeftoifFilePath(fName: String): String = {
         def fileNameWithoutExtension(outputStem: String): String = {
             val indexOfLastFolderSep = outputStem.lastIndexOf(File.separatorChar)
-            val lastPathElement = outputStem.substring(indexOfLastFolderSep);
+            val lastPathElement = outputStem.substring(indexOfLastFolderSep)
             val lastSepIndex = indexOfLastFolderSep + lastPathElement.lastIndexOf(".")
             if (lastSepIndex == -1) {
                 outputStem
