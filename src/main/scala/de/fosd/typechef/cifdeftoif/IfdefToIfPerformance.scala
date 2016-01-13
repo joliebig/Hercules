@@ -138,16 +138,20 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     private def isIfdeftoifCondition2(cExpr: Conditional[Expr]): Boolean = {
         var result = false
         cExpr match {
-            case One(NAryExpr(PostfixExpr(Id(featureStructInitializedName2), PointerPostfixSuffix(".", i: Id)), _)) =>
-                result = true
-            case One(PostfixExpr(Id(featureStructInitializedName2), PointerPostfixSuffix(".", i: Id))) =>
-                result = true
-            case One(UnaryOpExpr("!", NAryExpr(PostfixExpr(Id(featureStructInitializedName2), PointerPostfixSuffix(".", i: Id)), _))) =>
-                result = true
-            case One(UnaryOpExpr("!", PostfixExpr(Id(featureStructInitializedName2), PointerPostfixSuffix(".", i: Id)))) =>
-                result = true
-            case One(NAryExpr(expr, others)) =>
-                result = isIfdeftoifCondition2(expr)
+            case One(expr@NAryExpr(PostfixExpr(Id(name), PointerPostfixSuffix(".", i: Id)), _)) =>
+                if (name.equals(featureStructInitializedName2))
+                    result = true
+            case One(expr@PostfixExpr(Id(name), PointerPostfixSuffix(".", i: Id))) =>
+                if (name.equals(featureStructInitializedName2))
+                    result = true
+            case One(expr@UnaryOpExpr("!", NAryExpr(PostfixExpr(Id(name), PointerPostfixSuffix(".", i: Id)), _))) =>
+                if (name.equals(featureStructInitializedName2))
+                    result = true
+            case One(expr@UnaryOpExpr("!", PostfixExpr(Id(name), PointerPostfixSuffix(".", i: Id)))) =>
+                if (name.equals(featureStructInitializedName2))
+                    result = true
+            case One(expr@NAryExpr(exprs, others)) =>
+                result = isIfdeftoifCondition2(exprs)
             case One(id: Id) =>
                 result = id.name.startsWith(featurePrefix2)
             case One(UnaryOpExpr("!", id: Id)) =>
