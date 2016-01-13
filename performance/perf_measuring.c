@@ -15,6 +15,7 @@ typedef struct id2iperf_data_structs {
     char key_string[ID2IPERF_KEY_MAX_LENGTH];
     double number;
     int measurements;
+    int numberOfStmts;
 } id2iperf_data_struct;
 
 typedef struct id2iperf_times {
@@ -22,12 +23,6 @@ typedef struct id2iperf_times {
   double end;
   double diff;
 } id2iperf_time;
-
-typedef struct id2iperf_measurement_struct {
-  double exec_time;
-  int measurements;
-  double approx_time;
-} id2iperf_measurement;
 
 double id2iperf_getTime() {
   struct timeval t1;
@@ -49,7 +44,7 @@ map_t id2iperf_mymap;
 
 int id2iperf_printHashMap(any_t *t1, any_t t2, char* key) {
   *t1 = t2;
-  printf("%s -> %f ms (measurements: %d)\n", key, id2iperf_tmpvalue->number, id2iperf_tmpvalue->measurements);
+  printf("%s -> %f ms (measurements: %d; statements: %d)\n", key, id2iperf_tmpvalue->number, id2iperf_tmpvalue->measurements, id2iperf_tmpvalue->numberOfStmts);
   return 0;
 }
 
@@ -75,6 +70,7 @@ void id2iperf_time_end() {
   id2iperf_data_struct* true_entry = malloc(sizeof(id2iperf_data_struct));
   true_entry->number = t->end - t->start;
   true_entry->measurements = 1;
+  true_entry->numberOfStmts = 0;
   hashmap_put(id2iperf_mymap, "TRUE", true_entry);
   printf("Hashmap size: %d\n", hashmap_length(id2iperf_mymap));
   printf("Measurement counter: %d\n", id2iperf_measurement_counter);
@@ -98,7 +94,7 @@ void id2iperf_time_before(char *id2iperf_contextName) {
   push(&id2iperf_times, t);
 }
 
-void id2iperf_time_after() {
+void id2iperf_time_after(int statementNo) {
   id2iperf_time* t = pop(&id2iperf_times);
   t->end = id2iperf_getTime();
   t->diff = t->end - t->start;
@@ -108,11 +104,13 @@ void id2iperf_time_after() {
     id2iperf_data_struct* hashmap_entry = malloc(sizeof(id2iperf_data_struct));
     hashmap_entry->number = t->diff;
     hashmap_entry->measurements = 1;
+    hashmap_entry->numberOfStmts = statementNo;
     hashmap_put(id2iperf_mymap, tmp_context, hashmap_entry);
   } else {
     hashmap_get(id2iperf_mymap, tmp_context, (void**)(&id2iperf_tmpvalue));
     id2iperf_tmpvalue->number += t->diff;
     id2iperf_tmpvalue->measurements++;
+    id2iperf_tmpvalue->numberOfStmts += statementNo;
     //free(tmp_context);
   }
   free(t);
