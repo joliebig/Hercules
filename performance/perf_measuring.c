@@ -72,6 +72,7 @@ void id2iperf_time_end() {
   true_entry->measurements = 1;
   true_entry->numberOfStmts = 0;
   hashmap_put(id2iperf_mymap, "TRUE", true_entry);
+  printf("-- Hercules Performance --");
   printf("Hashmap size: %d\n", hashmap_length(id2iperf_mymap));
   printf("Measurement counter: %d\n", id2iperf_measurement_counter);
   hashmap_get(id2iperf_mymap, "TRUE", (void**)(&id2iperf_tmpvalue));
