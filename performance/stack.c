@@ -1,6 +1,5 @@
 #ifndef STACK_C
 #define STACK_C
-#include <stdlib.h>
 #include "stack.h"
 
 

@@ -92,7 +92,6 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
             // disabled typechecking ifeftoif result because of macro insertions and including <stdio.h> which can't be parsed by TypeChef
             ifdeftoifnocheck = true
             performance = true
-            externoptions = false
         } else if (c == F_EXTERNOPTIONS) {
             parse = true
             typecheck = true
