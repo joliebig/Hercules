@@ -3,6 +3,7 @@ package de.fosd.typechef.cifdeftoif
 import de.fosd.typechef.conditional.{Conditional, One, Opt}
 import de.fosd.typechef.featureexpr.{FeatureExpr, FeatureExprFactory}
 import de.fosd.typechef.parser.c._
+import org.kiama.rewriting.Rewriter._
 
 trait IfdefToIfPerformanceInterface {
 
@@ -41,6 +42,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
 
     private val featureStructInitializedName2 = "id2i"
     private var featurePrefix2 = "f_"
+    private var performanceCounter = 0
 
     override def insertPerfFunctCalls(stmts: List[Opt[Statement]], context: FeatureExpr): List[Opt[Statement]] = {
         return insertPerfFunctCalls(CompoundStatement(stmts), context).innerStatements
@@ -55,20 +57,42 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         val regexPattern = "(defined|definedEx)\\(([a-zA-Z_0-9]+)\\)".r
         val featureString = regexPattern replaceAllIn(context.toTextExpr, "$2")
         val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ featureString ++ "\"")))))))))
+        performanceCounter += 1
         val last = cmpstmt.innerStatements.last
-        if (last.entry.isInstanceOf[ReturnStatement]) {
+
+        val r = manytd(rule {
+            case CompoundStatement(innerStmts) =>
+                CompoundStatement(innerStmts.flatMap {
+                    case Opt(ft, ReturnStatement(None)) =>
+                        List(Opt(ft, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))), Opt(ft, ReturnStatement(None)))
+                    case Opt(ft, ReturnStatement(Some(expr))) =>
+                        List(Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, expr), Opt(trueF3, Id(functionAfterName + "(" + numberOfStatements.toString + ")")))))))))
+                    case k =>
+                        List(k)
+                })
+        })
+        if (!last.entry.isInstanceOf[ReturnStatement]) {
+            val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))
+            return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements ++ List(Opt(trueF3, afterStmt)))
+        } else {
+            return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
+        }
+        /*if (last.entry.isInstanceOf[ReturnStatement]) {
             val currentReturn = last.entry.asInstanceOf[ReturnStatement]
             if (currentReturn.expr.isDefined) {
                 val fctCall = ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, last.entry.asInstanceOf[ReturnStatement].expr.get), Opt(trueF3, Id(functionAfterName + "(" + numberOfStatements.toString + ")")))))))
                 return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ cmpstmt.innerStatements.take(cmpstmt.innerStatements.size - 1) ++ List(Opt(trueF3, fctCall)))
             } else {
+                //val fctCall = ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0")), Opt(trueF3, Id(functionAfterName + "(" + numberOfStatements.toString + ")")))))))
+                //return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ cmpstmt.innerStatements.take(cmpstmt.innerStatements.size - 1) ++ List(Opt(trueF3, fctCall)))
+
                 val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))
                 return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ cmpstmt.innerStatements.take(cmpstmt.innerStatements.size - 1) ++ List(Opt(trueF3, afterStmt)) ++ List(last))
             }
         } else {
             val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))
             return CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ cmpstmt.innerStatements ++ List(Opt(trueF3, afterStmt)))
-        }
+        }*/
     }
 
     override def insertPerfMainFunctCalls(cmpstmt: CompoundStatement): CompoundStatement = {

@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/time.h>
+//#include <time.h>
 #include "hashmap.h"
 #include "stack.h"
 #include "hashmap.c"
@@ -71,11 +72,11 @@ void id2iperf_time_end() {
   true_entry->number = t->end - t->start;
   true_entry->measurements = 1;
   true_entry->numberOfStmts = 0;
-  hashmap_put(id2iperf_mymap, "TRUE", true_entry);
-  printf("-- Hercules Performance --");
+  hashmap_put(id2iperf_mymap, "BASE", true_entry);
+  printf("-- Hercules Performance --\n");
   printf("Hashmap size: %d\n", hashmap_length(id2iperf_mymap));
   printf("Measurement counter: %d\n", id2iperf_measurement_counter);
-  hashmap_get(id2iperf_mymap, "TRUE", (void**)(&id2iperf_tmpvalue));
+  hashmap_get(id2iperf_mymap, "BASE", (void**)(&id2iperf_tmpvalue));
   double total_time = true_entry->number;
   printf("Total time: %f ms\n", total_time);
   //double measurement_time = total_time - (id2iperf_measurement_counter * id2iperf_measurement_time);
@@ -86,6 +87,7 @@ void id2iperf_time_end() {
 }
 
 void id2iperf_time_before(char *id2iperf_contextName) {
+  //printf("Before: %s\n", id2iperf_contextName);
   push(&id2iperf_context, id2iperf_contextName);
   id2iperf_measurement_counter++;
   id2iperf_time* t = malloc(sizeof(id2iperf_time));
@@ -114,6 +116,7 @@ void id2iperf_time_after(int statementNo) {
     id2iperf_tmpvalue->numberOfStmts += statementNo;
     //free(tmp_context);
   }
+  //printf("After: %s\n", tmp_context);
   free(t);
   pop(&id2iperf_context);
 }

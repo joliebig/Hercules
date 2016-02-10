@@ -60,6 +60,7 @@ int stack_content(pstack *s, char* result) {
     }
     strcat(result, content[0]);
     result[strlength] = '\0';
+    //printf("wtf: %s %zu\n", result, strlength);
     content = realloc(content, i * sizeof(char*));
     //free(content);
     return strlength;
@@ -67,13 +68,19 @@ int stack_content(pstack *s, char* result) {
 
 void push(pstack *s, void *new_num)
 {
-    struct Stack *new_node = malloc(sizeof(struct Stack));
-    if (!new_node)
-        exit(EXIT_FAILURE);
-    new_node->data = new_num;
-    //printf("Pushing %s\n", new_num);
-    new_node->next = *s;
-    //stack_elements++;
-    *s = new_node;
+    struct Stack *tmp;
+    tmp = *s;
+    if (!is_empty(tmp) && tmp->data == new_num) {
+        // don't push the same context twice in a row!
+    } else {
+        struct Stack *new_node = malloc(sizeof(struct Stack));
+        if (!new_node)
+            exit(EXIT_FAILURE);
+        new_node->data = new_num;
+        //printf("Pushing %s\n", new_num);
+        new_node->next = *s;
+        //stack_elements++;
+        *s = new_node;
+    }
 }
 #endif

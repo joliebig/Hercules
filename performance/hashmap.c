@@ -5,7 +5,7 @@
  */
 #include "hashmap.h"
 
-//#include <string.h>
+#include <string.h>
 
 #define INITIAL_SIZE (256)
 #define MAX_CHAIN_LENGTH (8)
