@@ -5,11 +5,9 @@ import de.fosd.typechef.featureexpr.{FeatureExpr, FeatureExprFactory}
 import de.fosd.typechef.parser.c._
 import org.kiama.rewriting.Rewriter._
 
-trait IfdefToIfPerformanceInterface {
+import scala.collection.JavaConversions._
 
-    def insertPerfFunctCalls(stmts: List[Opt[Statement]], context: FeatureExpr): List[Opt[Statement]] = {
-        stmts
-    }
+trait IfdefToIfPerformanceInterface {
 
     def insertPerfFunctCalls(cmpstmt: CompoundStatement, context: FeatureExpr): CompoundStatement = {
         cmpstmt
@@ -27,8 +25,24 @@ trait IfdefToIfPerformanceInterface {
         (stmts, 0)
     }
 
-    def combinePerformancePair(firstStmts: List[Opt[Statement]], secondStmts: List[Opt[Statement]]): List[Opt[Statement]] = {
-        firstStmts ++ secondStmts
+    def combinePerformancePair(firstStmts: CompoundStatement, secondStmts: CompoundStatement): CompoundStatement = {
+        CompoundStatement(firstStmts.innerStatements ++ secondStmts.innerStatements)
+    }
+
+    def printPerformanceCounter() = {
+        // Nothing
+    }
+
+    def insertPerformanceCounter(suffix: PostfixSuffix): PostfixSuffix = {
+        suffix
+    }
+
+    def insertPerformanceCounter(cmpStmt: CompoundStatement): CompoundStatement = {
+        cmpStmt
+    }
+
+    def updatePerformancePrependString(prependString: String, createIncludeDirective: (String) => String, path: String): String = {
+        ""
     }
 }
 
@@ -41,23 +55,81 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     val returnMacroName = "id2iperf_return"
 
     private val featureStructInitializedName2 = "id2i"
+    private val performanceIncludeFileName = "perf_measuring.c"
+    private val performanceIncludeCounterFileName = "perf_measuring_counter.c"
+    private val performanceCmpStmtContextMap: java.util.LinkedHashMap[CompoundStatement, FeatureExpr] = new java.util.LinkedHashMap()
+    private val returnMacro = "#define id2iperf_return(expr, stmts) __typeof__(expr) ____RetTmp = expr; stmts; return ____RetTmp;\n"
     private var featurePrefix2 = "f_"
     private var performanceCounter = 0
+    private var insertPerformanceCounter = true
 
-    override def insertPerfFunctCalls(stmts: List[Opt[Statement]], context: FeatureExpr): List[Opt[Statement]] = {
-        return insertPerfFunctCalls(CompoundStatement(stmts), context).innerStatements
+    override def updatePerformancePrependString(prependString: String, createIncludeDirective: (String) => String, path: String): String = {
+        if (insertPerformanceCounter) {
+            returnMacro ++ createIncludeDirective(path ++ performanceIncludeCounterFileName)
+        } else {
+            returnMacro ++ createIncludeDirective(path ++ performanceIncludeFileName)
+        }
+    }
+
+    override def printPerformanceCounter() = {
+        if (insertPerformanceCounter) {
+            println("Number of performance measuring nodes: " + performanceCounter)
+            var currentIndex = 0
+            performanceCmpStmtContextMap.foreach(x => {
+                println("Node " + currentIndex.toString + ":\t" + contextToReadableString(x._2) + " -> " + x._1)
+                currentIndex += 1
+            })
+        }
+    }
+
+    private def contextToReadableString(context: FeatureExpr): String = {
+        val regexPattern = "(defined|definedEx)\\(([a-zA-Z_0-9]+)\\)".r
+        return regexPattern replaceAllIn(context.toTextExpr, "$2")
+    }
+
+    override def insertPerformanceCounter(suffix: PostfixSuffix): PostfixSuffix = {
+        if (insertPerformanceCounter) {
+            suffix match {
+                case FunctionCall(ExprList(List(opt1@Opt(_, StringLit(_))))) =>
+                    performanceCounter += 1
+                    return FunctionCall(ExprList(List(opt1, Opt(trueF3, Constant(performanceCounter.toString)))))
+                case _ =>
+            }
+        }
+        suffix
+    }
+
+    override def insertPerformanceCounter(cmpStmt: CompoundStatement): CompoundStatement = {
+        if (insertPerformanceCounter) {
+            cmpStmt.innerStatements.head match {
+                case Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(opt1@Opt(_, StringLit(_)))))))) =>
+                    val context = performanceCmpStmtContextMap.get(cmpStmt)
+                    val result = CompoundStatement(Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(opt1, Opt(trueF3, Constant(performanceCounter.toString)))))))) :: cmpStmt.innerStatements.tail)
+                    performanceCmpStmtContextMap.put(result, context)
+                    performanceCmpStmtContextMap.remove(cmpStmt)
+                    performanceCounter += 1
+                    return result
+                case _ =>
+            }
+            return cmpStmt
+        } else {
+            return cmpStmt
+        }
     }
 
     override def insertPerfFunctCalls(cmpstmt: CompoundStatement, context: FeatureExpr): CompoundStatement = {
+        val result = insertPerfFunctCallsInner(cmpstmt, context)
+        performanceCmpStmtContextMap.put(result, context)
+        return result
+    }
+
+    def insertPerfFunctCallsInner(cmpstmt: CompoundStatement, context: FeatureExpr): CompoundStatement = {
         if (context == trueF3 || cmpstmt.innerStatements.isEmpty) {
             // Don't insert anything
             return cmpstmt
         }
         val numberOfStatements = getNumberOfStatements(cmpstmt)
-        val regexPattern = "(defined|definedEx)\\(([a-zA-Z_0-9]+)\\)".r
-        val featureString = regexPattern replaceAllIn(context.toTextExpr, "$2")
-        val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ featureString ++ "\"")))))))))
-        performanceCounter += 1
+        val beforeStmt = ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ contextToReadableString(context) ++ "\"")))))))))
         val last = cmpstmt.innerStatements.last
 
         val r = manytd(rule {
@@ -117,9 +189,14 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         }
     }
 
-    override def combinePerformancePair(firstStmts: List[Opt[Statement]], secondStmts: List[Opt[Statement]]): List[Opt[Statement]] = {
-        val tmpTuple = removePerformanceAfterFunction(firstStmts)
-        tmpTuple._1 ++ updatePerformanceAfterFunction(removePerformanceBeforeFunction(secondStmts), tmpTuple._2)
+    override def combinePerformancePair(firstStmts: CompoundStatement, secondStmts: CompoundStatement): CompoundStatement = {
+        val tmpTuple = removePerformanceAfterFunction(firstStmts.innerStatements)
+        val result = CompoundStatement(tmpTuple._1 ++ updatePerformanceAfterFunction(removePerformanceBeforeFunction(secondStmts.innerStatements), tmpTuple._2))
+        val context = performanceCmpStmtContextMap.get(firstStmts)
+        performanceCmpStmtContextMap.put(result, context)
+        performanceCmpStmtContextMap.remove(firstStmts)
+        performanceCmpStmtContextMap.remove(secondStmts)
+        return result
     }
 
     override def removePerformanceBeforeFunction(stmts: List[Opt[Statement]]): List[Opt[Statement]] = {
