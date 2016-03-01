@@ -86,7 +86,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
             println("Number of performance measuring nodes: " + performanceCounter)
             var currentIndex = 0
             performanceCmpStmtContextMap.foreach(x => {
-                //println("Node " + currentIndex.toString + ":\t" + x._2 + " -> " + x._1)
+                println("Node " + currentIndex.toString + ":\t" + x._2 + " -> " + x._1)
                 currentIndex += 1
             })
         }
