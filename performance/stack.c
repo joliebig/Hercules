@@ -8,10 +8,10 @@ bool is_empty(pstack *s) { return !s; }
 void make_empty(pstack *s)
 {
     if (!is_empty(s))
-        pop(s);
+        pop(s, 0);
 }
 
-void *pop(pstack *s)
+void *pop(pstack *s, int isString)
 {
     struct Stack *tmp;
     void *i;
@@ -23,7 +23,11 @@ void *pop(pstack *s)
     i = (*s)->data;
     *s = (*s)->next;
     free(tmp);
-    //printf("Popping %s\n", i);
+    if (isString) {
+      //printf("Popping %s\n", i);
+    } else {
+      //printf("Popping time\n");
+    }
     return i;
 }
 
@@ -36,9 +40,10 @@ void *top(pstack *s)
 }
 
 int stack_content(pstack *s, char* result) {
+	//printf("CONTENT\n");
     struct Stack *tmp;
     char **content;
-    content = malloc(100 * sizeof(char*));
+    content = malloc(1000 * sizeof(char*));
     tmp = *s;
     int i = 0;
     int strlength = 0;
@@ -46,13 +51,14 @@ int stack_content(pstack *s, char* result) {
         //content[i] = malloc((strlen(tmp->data)+1) * sizeof(char*));
         //strcpy(content[i], tmp->data);
         content[i] = tmp->data;
-        i++;
         // increase string length counter for malloc later
         strlength = strlength + strlen(tmp->data);
+        //printf("CO: %s\n%d\n", content[i], strlength);
+        i++;
         tmp = tmp->next;
     }
     // add spaces für '&'s to string length counter
-    strlength = strlength + i;
+    strlength += i;
     int j;
     for (j=i-1; j > 0; j--) {
         strcat(result, content[j]);
@@ -66,21 +72,25 @@ int stack_content(pstack *s, char* result) {
     return strlength;
 }
 
-void push(pstack *s, void *new_num)
+void push(pstack *s, void *new_num, int isString)
 {
     struct Stack *tmp;
     tmp = *s;
-    if (!is_empty(tmp) && tmp->data == new_num) {
+    	// /*!is_empty(tmp) && tmp->data == new_num*/
         // don't push the same context twice in a row!
-    } else {
-        struct Stack *new_node = malloc(sizeof(struct Stack));
-        if (!new_node)
-            exit(EXIT_FAILURE);
-        new_node->data = new_num;
-        //printf("Pushing %s\n", new_num);
-        new_node->next = *s;
-        //stack_elements++;
-        *s = new_node;
+    struct Stack *new_node = malloc(sizeof(struct Stack));
+    if (!new_node) {
+    	//printf("EXIT\n");
+        exit(EXIT_FAILURE);
     }
+    new_node->data = new_num;
+    if (isString) {
+      //printf("Pushing %s\n", new_num);
+    } else {
+      //printf("Pushing time\n");
+    }
+    new_node->next = *s;
+    //stack_elements++;
+    *s = new_node;
 }
 #endif

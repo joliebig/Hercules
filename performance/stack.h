@@ -17,8 +17,8 @@ typedef struct Stack *pstack;
 
 bool is_empty(pstack *s);
 void make_empty(pstack *s);
-void push(pstack *s, void *new_num);
-void *pop(pstack *s);
+void push(pstack *s, void *new_num, int isString);
+void *pop(pstack *s, int isString);
 void *top(pstack *s);
 int stack_content(pstack *s, char* result);
 
