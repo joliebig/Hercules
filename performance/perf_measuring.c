@@ -1,3 +1,8 @@
+//#include <stdlib.h>
+//#include <stdio.h>
+//#include <sys/time.h>
+//#include <time.h>
+//#include <string.h>
 #include "hashmap.h"
 #include "stack.h"
 #include "hashmap.c"
@@ -65,12 +70,12 @@ void id2iperf_time_start() {
   id2iperf_tmpvalue = malloc(sizeof(id2iperf_data_struct));
   id2iperf_time* t = malloc(sizeof(id2iperf_time));
   t->start = id2iperf_getTime();
-  push(&id2iperf_times, t);
+  push(&id2iperf_times, t, 0);
 }
 
 void id2iperf_time_end() {
   double tmpTime = id2iperf_getTime();
-  id2iperf_time* t = pop(&id2iperf_times);
+  id2iperf_time* t = pop(&id2iperf_times, 0);
   t->end = tmpTime;
   id2iperf_measurement_counter++;
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_addHashMap, (void**)(&id2iperf_tmpvalue));
@@ -94,26 +99,37 @@ void id2iperf_time_end() {
 }
 
 void id2iperf_time_before(char *id2iperf_contextName) {
-  //printf("Before: %s\n", id2iperf_contextName);
   double tmpTime = id2iperf_getTime();
-  push(&id2iperf_context, id2iperf_contextName);
+  id2iperf_time_helper(id2iperf_contextName);
+}
+
+void id2iperf_time_before_counter(char *id2iperf_contextName, int currentIdentifier) {
+  double tmpTime = id2iperf_getTime();
+  printf("Performance counter: %d\n", currentIdentifier);
+  id2iperf_time_helper(id2iperf_contextName);
+}
+
+void id2iperf_time_helper(char *id2iperf_contextName) {
+  //printf("Before: %s, %d\n", id2iperf_contextName, currentIdentifier);
+  push(&id2iperf_context, id2iperf_contextName, 1);
   id2iperf_measurement_counter++;
   id2iperf_time* t = malloc(sizeof(id2iperf_time));
   t->outerStart = tmpTime;
   t->diff = 0;
   t->end = 0;
-  push(&id2iperf_times, t);
+  push(&id2iperf_times, t, 0);
   t->start = id2iperf_getTime();
 }
 
 void id2iperf_time_after(int statementNo) {
   double tmpTime = id2iperf_getTime();
-  id2iperf_time* t = pop(&id2iperf_times);
+  id2iperf_time* t = pop(&id2iperf_times, 0);
   t->end = id2iperf_getTime();
   t->diff = t->end - t->start;
   char *tmp_context = malloc(ID2IPERF_CONTEXT_SIZE * sizeof(char));
   stack_content(&id2iperf_context, tmp_context);
-  pop(&id2iperf_context);
+  //printf("After: %s\n", tmp_context);
+  pop(&id2iperf_context, 1);
   if (hashmap_get(id2iperf_mymap, tmp_context, (void**)(&id2iperf_tmpvalue)) == MAP_MISSING) {
     id2iperf_data_struct* hashmap_entry = malloc(sizeof(id2iperf_data_struct));
     hashmap_put(id2iperf_mymap, tmp_context, hashmap_entry);
@@ -129,6 +145,5 @@ void id2iperf_time_after(int statementNo) {
     id2iperf_tmpvalue->outerDiff += id2iperf_getTime() - t->outerStart;
     //free(tmp_context);
   }
-  //printf("After: %s\n", tmp_context);
   free(t);
 }
