@@ -109,7 +109,7 @@ void id2iperf_time_before_counter(char *id2iperf_contextName, int currentIdentif
   id2iperf_time_helper(id2iperf_contextName, tmpTime);
 }
 
-void id2iperf_time_helper(char *id2iperf_contextName, double currentTime) {
+void id2iperf_time_helper(char *id2iperf_contextName, double tmpTime) {
   //printf("Before: %s, %d\n", id2iperf_contextName, currentIdentifier);
   push(&id2iperf_context, id2iperf_contextName, 1);
   id2iperf_measurement_counter++;
