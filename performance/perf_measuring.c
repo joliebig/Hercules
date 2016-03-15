@@ -3,6 +3,7 @@
 //#include <sys/time.h>
 //#include <time.h>
 //#include <string.h>
+#include <assert.h>
 #include "hashmap.h"
 #include "stack.h"
 #include "hashmap.c"
@@ -33,6 +34,8 @@ typedef struct id2iperf_times {
   double end;
   double diff;
   double outerStart;
+  int allowedToPop;
+  int stackSize;
 } id2iperf_time;
 
 double id2iperf_getTime() {
@@ -110,13 +113,13 @@ void id2iperf_time_before_counter(char *id2iperf_contextName, int currentIdentif
 }
 
 void id2iperf_time_helper(char *id2iperf_contextName, double tmpTime) {
-  //printf("Before: %s, %d\n", id2iperf_contextName, currentIdentifier);
-  push(&id2iperf_context, id2iperf_contextName, 1);
-  id2iperf_measurement_counter++;
   id2iperf_time* t = malloc(sizeof(id2iperf_time));
+  t->allowedToPop = pushUnique(&id2iperf_context, id2iperf_contextName, 1);
+  id2iperf_measurement_counter++;
   t->outerStart = tmpTime;
   t->diff = 0;
   t->end = 0;
+  t->stackSize = stack_size(&id2iperf_context);
   push(&id2iperf_times, t, 0);
   t->start = id2iperf_getTime();
 }
@@ -126,10 +129,13 @@ void id2iperf_time_after(int statementNo) {
   id2iperf_time* t = pop(&id2iperf_times, 0);
   t->end = id2iperf_getTime();
   t->diff = t->end - t->start;
-  char *tmp_context = malloc(ID2IPERF_CONTEXT_SIZE * sizeof(char));
-  stack_content(&id2iperf_context, tmp_context);
-  //printf("After: %s\n", tmp_context);
-  pop(&id2iperf_context, 1);
+  char *tmp_context;
+
+  stack_content(&id2iperf_context, &tmp_context);
+  assert(t->stackSize == stack_size(&id2iperf_context));
+  if (t->allowedToPop) {
+	  pop(&id2iperf_context, 1);
+  }
   if (hashmap_get(id2iperf_mymap, tmp_context, (void**)(&id2iperf_tmpvalue)) == MAP_MISSING) {
     id2iperf_data_struct* hashmap_entry = malloc(sizeof(id2iperf_data_struct));
     hashmap_put(id2iperf_mymap, tmp_context, hashmap_entry);
@@ -138,12 +144,12 @@ void id2iperf_time_after(int statementNo) {
     hashmap_entry->numberOfStmts = statementNo;
     hashmap_entry->outerDiff = id2iperf_getTime() - t->outerStart;
   } else {
-    hashmap_get(id2iperf_mymap, tmp_context, (void**)(&id2iperf_tmpvalue));
     id2iperf_tmpvalue->myTime += t->diff;
     id2iperf_tmpvalue->measurements++;
     id2iperf_tmpvalue->numberOfStmts += statementNo;
     id2iperf_tmpvalue->outerDiff += id2iperf_getTime() - t->outerStart;
-    //free(tmp_context);
+    // Free context since its information is already stored inside the hashmap
+    free(tmp_context);
   }
   free(t);
 }
