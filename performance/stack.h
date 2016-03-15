@@ -18,8 +18,10 @@ typedef struct Stack *pstack;
 bool is_empty(pstack *s);
 void make_empty(pstack *s);
 void push(pstack *s, void *new_num, int isString);
+int pushUnique(pstack *s, void *new_num, int isString);
 void *pop(pstack *s, int isString);
 void *top(pstack *s);
-int stack_content(pstack *s, char* result);
+void stack_content(pstack *s, char** result);
+int stack_size(pstack *s);
 
 #endif /* STACK_H */
