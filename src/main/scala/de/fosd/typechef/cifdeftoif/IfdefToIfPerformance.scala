@@ -45,6 +45,14 @@ trait IfdefToIfPerformanceInterface {
     def updatePerformancePrependString(prependString: String, createIncludeDirective: (String) => String, path: String, fileName: String): String = {
         ""
     }
+
+    def fixBreakAndContinues[T <: Product](t: T, ifdefDepth: Int = 0, forDoWhileDepth: Int = 0, switchIfdefDepth: Int = 0, lastStmtWasSwitch: Boolean = false): T = {
+        t
+    }
+
+    def correctPerformanceFeaturePrefix(newPrefix: String) = {
+        // Nothing
+    }
 }
 
 trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilities {
@@ -65,6 +73,70 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     private var featurePrefix2 = "f_"
     private var performanceCounter = 0
     private var insertPerformanceCounter = true
+
+    override def correctPerformanceFeaturePrefix(newPrefix: String): Unit = {
+        featurePrefix2 = newPrefix
+    }
+
+    override def fixBreakAndContinues[T <: Product](t: T, ifdefDepth: Int = 0, forDoWhileIfdefDepth: Int = 0, switchIfdefDepth: Int = 0, lastStmtWasSwitch: Boolean = false): T = {
+        val transformation = alltd(rule {
+            case Opt(ft, i@IfStatement(cond, _, _, _)) =>
+                if (isIfdeftoifCondition2(cond)) {
+                    Opt(ft, fixBreakAndContinues(i, ifdefDepth + 1, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
+                } else {
+                    Opt(ft, fixBreakAndContinues(i, ifdefDepth, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
+                }
+            case Opt(ft, s: ForStatement) =>
+                Opt(ft, fixBreakAndContinues(s, ifdefDepth, ifdefDepth, switchIfdefDepth, false))
+            case Opt(ft, s: DoStatement) =>
+                Opt(ft, fixBreakAndContinues(s, ifdefDepth, ifdefDepth, switchIfdefDepth, false))
+            case Opt(ft, s: WhileStatement) =>
+                Opt(ft, fixBreakAndContinues(s, ifdefDepth, ifdefDepth, switchIfdefDepth, false))
+            case Opt(ft, s: SwitchStatement) =>
+                Opt(ft, fixBreakAndContinues(s, ifdefDepth, forDoWhileIfdefDepth, ifdefDepth, true))
+            case CompoundStatement(innerStmts) =>
+                CompoundStatement(innerStmts.flatMap {
+                    case Opt(ft, ReturnStatement(None)) if ifdefDepth > 0 =>
+                        var result: List[Opt[Statement]] = List()
+                        val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
+                        for (counter <- 0 until ifdefDepth - forDoWhileIfdefDepth) {
+                            result = afterStmt :: result
+                        }
+                        result ++ List(Opt(ft, ReturnStatement(None)))
+                    case Opt(ft, ReturnStatement(Some(expr))) if ifdefDepth > 0 =>
+                        var result: List[Opt[Statement]] = List()
+                        val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
+                        val returnMacroCall = Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, expr), Opt(trueF3, Id(functionAfterName + "(" + "0" + ")"))))))))
+                        for (counter <- 1 until ifdefDepth - forDoWhileIfdefDepth) {
+                            result = afterStmt :: result
+                        }
+                        result ++ List(returnMacroCall)
+                    case Opt(ft, ContinueStatement()) if ifdefDepth > 0 =>
+                        var result: List[Opt[Statement]] = List()
+                        val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
+                        for (counter <- 0 until ifdefDepth - forDoWhileIfdefDepth) {
+                            result = afterStmt :: result
+                        }
+                        result ++ List(Opt(ft, ContinueStatement()))
+                    case Opt(ft, BreakStatement()) if ifdefDepth > 0 =>
+                        var result: List[Opt[Statement]] = List()
+                        val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
+                        var limit = 0
+                        if (lastStmtWasSwitch) {
+                            limit = switchIfdefDepth
+                        } else {
+                            limit = forDoWhileIfdefDepth
+                        }
+                        for (counter <- 1 until ifdefDepth - limit) {
+                            result = afterStmt :: result
+                        }
+                        result ++ List(Opt(ft, BreakStatement()))
+                    case k =>
+                        List(fixBreakAndContinues(k, ifdefDepth, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
+                })
+        })
+        transformation(t).getOrElse(t).asInstanceOf[T]
+    }
 
     override def updatePerformancePrependString(prependString: String, createIncludeDirective: (String) => String, path: String, fileName: String): String = {
         var result = returnMacro
@@ -149,8 +221,37 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         }
         val beforeStmt = ExprStatement(PostfixExpr(Id(functionName), FunctionCall(ExprList(List(Opt(trueF3, StringLit(List(Opt(trueF3, "\"" ++ contextToReadableString(context) ++ "\"")))))))))
         val last = cmpstmt.innerStatements.last
+        val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))
 
+        def alterStatementHelper[T <: Product](t: T, continueExitsContext: Boolean = true): T = {
+            val transformation = alltd(rule {
+                case i@IfStatement(cond, One(CompoundStatement(List(Opt(ft, ContinueStatement())))), List(), None) =>
+                    if (continueExitsContext) {
+                        IfStatement(cond, One(CompoundStatement(List(Opt(trueF3, afterStmt), Opt(ft, ContinueStatement())))), List(), None)
+                    } else {
+                        i
+                    }
+                case Opt(ft, s: ForStatement) =>
+                    Opt(ft, alterStatementHelper(s, false))
+                case Opt(ft, s: DoStatement) =>
+                    Opt(ft, alterStatementHelper(s, false))
+                case Opt(ft, s: WhileStatement) =>
+                    Opt(ft, alterStatementHelper(s, false))
+                case CompoundStatement(innerStmts) =>
+                    CompoundStatement(innerStmts.flatMap {
+                        case Opt(ft, ReturnStatement(None)) =>
+                            List(Opt(ft, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))), Opt(ft, ReturnStatement(None)))
+                        case Opt(ft, ReturnStatement(Some(expr))) =>
+                            List(Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, expr), Opt(trueF3, Id(functionAfterName + "(" + numberOfStatements.toString + ")")))))))))
+                        case k =>
+                            List(alterStatementHelper(k, continueExitsContext))
+                    })
+            })
+            transformation(t).getOrElse(t).asInstanceOf[T]
+        }
         val r = manytd(rule {
+            case i@IfStatement(cond, One(CompoundStatement(List(Opt(ft, ContinueStatement())))), List(), None) =>
+                IfStatement(cond, One(CompoundStatement(List(Opt(trueF3, afterStmt), Opt(ft, ContinueStatement())))), List(), None)
             case CompoundStatement(innerStmts) =>
                 CompoundStatement(innerStmts.flatMap {
                     case Opt(ft, ReturnStatement(None)) =>
@@ -164,8 +265,9 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         if (last.entry.isInstanceOf[ReturnStatement]) {
             result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
         } else {
-            val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))
-            val newCompound = r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement]
+            //val newCompound = r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement]
+            //val newCompound = alterStatementHelper(cmpstmt)
+            val newCompound = cmpstmt
             if (last.entry.isInstanceOf[BreakStatement]) {
                 result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ newCompound.innerStatements.take(newCompound.innerStatements.size - 1) ++ List(Opt(trueF3, afterStmt)) ++ List(last))
             } else {

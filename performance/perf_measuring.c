@@ -81,6 +81,8 @@ void id2iperf_time_end() {
   id2iperf_time* t = pop(&id2iperf_times, 0);
   t->end = tmpTime;
   id2iperf_measurement_counter++;
+  //assert(is_empty(id2iperf_times));
+  printf("Remaining stack size: %d\n", stack_size(&id2iperf_context));
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_addHashMap, (void**)(&id2iperf_tmpvalue));
   id2iperf_data_struct* true_entry = malloc(sizeof(id2iperf_data_struct));
   true_entry->myTime = t->end - t->start;
@@ -108,7 +110,7 @@ void id2iperf_time_before(char *id2iperf_contextName) {
 
 void id2iperf_time_before_counter(char *id2iperf_contextName, int currentIdentifier) {
   double tmpTime = id2iperf_getTime();
-  printf("Performance counter: %d\n", currentIdentifier);
+  //printf("enter: %s at %d\n", id2iperf_contextName, currentIdentifier);
   id2iperf_time_helper(id2iperf_contextName, tmpTime);
 }
 
@@ -119,7 +121,8 @@ void id2iperf_time_helper(char *id2iperf_contextName, double tmpTime) {
   t->outerStart = tmpTime;
   t->diff = 0;
   t->end = 0;
-  t->stackSize = stack_size(&id2iperf_context);
+  //t->stackSize = stack_size(&id2iperf_context);
+  //printf("%s size: %d\n", id2iperf_contextName, t->stackSize);
   push(&id2iperf_times, t, 0);
   t->start = id2iperf_getTime();
 }
@@ -132,7 +135,8 @@ void id2iperf_time_after(int statementNo) {
   char *tmp_context;
 
   stack_content(&id2iperf_context, &tmp_context);
-  assert(t->stackSize == stack_size(&id2iperf_context));
+  //printf("exit: %s\n", tmp_context);
+  //assert(t->stackSize == stack_size(&id2iperf_context));
   if (t->allowedToPop) {
 	  pop(&id2iperf_context, 1);
   }

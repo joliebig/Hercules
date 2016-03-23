@@ -754,6 +754,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     def ifdeftoif(source_ast: TranslationUnit, decluse: IdentityIdHashMap, usedecl: IdentityIdHashMap, fctFwdDecls: IdentityIdHashMap, featureModel: FeatureModel = FeatureExprLib.featureModelFactory.empty, outputStem: String = "unnamed", lexAndParseTime: Long = 0, writeStatistics: Boolean = true, newPath: String = "", typecheckResult: Boolean = true, useExternConfigStruct: Boolean = false): (Option[AST], Long, List[TypeChefError]) = {
         if (!exportOptionsAsStruct) {
             featurePrefix = featureStructInitializedName + "_"
+            correctPerformanceFeaturePrefix(featureStructInitializedName + "_")
         }
 
         //PrettyPrinter.printD(source_ast, path ++ "wtf.txt")
@@ -2702,7 +2703,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             case elifs@ElifStatement(cond, One(stmt: CompoundStatement)) if isIfdeftoifCondition(cond) =>
                 ElifStatement(cond, One(insertPerformanceCounter(stmt)))
         })
-        transformation(ast).getOrElse(ast).asInstanceOf[TranslationUnit]
+        fixBreakAndContinues(transformation(ast).getOrElse(ast).asInstanceOf[TranslationUnit])
     }
 
     /**
