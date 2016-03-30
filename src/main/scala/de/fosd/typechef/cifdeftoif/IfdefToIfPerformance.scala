@@ -86,6 +86,12 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                 } else {
                     Opt(ft, fixBreakAndContinues(i, ifdefDepth, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
                 }
+            case Opt(ft, i@ElifStatement(cond, _)) =>
+                if (isIfdeftoifCondition2(cond)) {
+                    Opt(ft, fixBreakAndContinues(i, ifdefDepth + 1, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
+                } else {
+                    Opt(ft, fixBreakAndContinues(i, ifdefDepth, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
+                }
             case Opt(ft, s: ForStatement) =>
                 Opt(ft, fixBreakAndContinues(s, ifdefDepth, ifdefDepth, switchIfdefDepth, false))
             case Opt(ft, s: DoStatement) =>
@@ -94,6 +100,8 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                 Opt(ft, fixBreakAndContinues(s, ifdefDepth, ifdefDepth, switchIfdefDepth, false))
             case Opt(ft, s: SwitchStatement) =>
                 Opt(ft, fixBreakAndContinues(s, ifdefDepth, forDoWhileIfdefDepth, ifdefDepth, true))
+            case Opt(ft, f: FunctionDef) =>
+                Opt(ft, fixBreakAndContinues(fixLabelAndGotos(f), ifdefDepth, forDoWhileIfdefDepth, ifdefDepth, lastStmtWasSwitch))
             case CompoundStatement(innerStmts) =>
                 CompoundStatement(innerStmts.flatMap {
                     case Opt(ft, ReturnStatement(None)) if ifdefDepth > 0 =>
@@ -192,19 +200,29 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         }
     }
 
-    private def getContext(cmpStmt: CompoundStatement): String = {
-        cmpStmt.innerStatements.head match {
-            case Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(entries))))) =>
-                entries match {
-                    case Opt(_, StringLit(List(Opt(_, stringLiteral)))) :: xs =>
-                        return stringLiteral.replaceFirst("\"(.*?)\"", "$1")
-                    case _ =>
+    private def getContext(cmpStmt: CompoundStatement, throwErrors: Boolean = true): String = {
+        if (!cmpStmt.innerStatements.isEmpty) {
+            cmpStmt.innerStatements.head match {
+                case Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(entries))))) =>
+                    entries match {
+                        case Opt(_, StringLit(List(Opt(_, stringLiteral)))) :: xs =>
+                            return stringLiteral.replaceFirst("\"(.*?)\"", "$1")
+                        case _ =>
+                            if (throwErrors) {
+                                logger2.error("Could not find context for statement: " + CompoundStatement)
+                            }
+                            return ""
+                    }
+                case _ =>
+                    if (throwErrors) {
                         logger2.error("Could not find context for statement: " + CompoundStatement)
-                        return ""
-                }
-            case _ =>
+                    }
+                    return ""
+            }
         }
-        logger2.error("Could not find context for statement: " + CompoundStatement)
+        if (throwErrors) {
+            logger2.error("Could not find context for statement: " + CompoundStatement)
+        }
         return ""
     }
 
@@ -352,6 +370,97 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                 return stmts
         }
         return stmts
+    }
+
+    private def fixLabelAndGotos[T <: Product](t: T): T = {
+        val labelContextMap: java.util.HashMap[String, List[String]] = new java.util.HashMap()
+        def getLabelContext[T <: Product](currentT: T, ifdefs: List[String] = List()): T = {
+            val labelContext = alltd(rule {
+                case cs: CompoundStatement =>
+                    val context = getContext(cs, false)
+                    if (context == "") {
+                        CompoundStatement(getLabelContext(cs.innerStatements, ifdefs))
+                    } else {
+                        CompoundStatement(getLabelContext(cs.innerStatements, context :: ifdefs))
+                    }
+                case o@Opt(ft, LabelStatement(id: Id, _)) =>
+                    labelContextMap.put(id.name, ifdefs)
+                    o
+
+            })
+            labelContext(currentT).getOrElse(currentT).asInstanceOf[T]
+        }
+        getLabelContext(t)
+
+        def fixLabelAndGotosHelper[T <: Product](currentT: T, currentIfdefs: List[String] = List()): T = {
+            val transformation = alltd(rule {
+                case cs: CompoundStatement =>
+                    val context = getContext(cs, false)
+                    if (context == "") {
+                        CompoundStatement(fixLabelAndGotosHelper(cs.innerStatements, currentIfdefs))
+                    } else {
+                        CompoundStatement(fixLabelAndGotosHelper(cs.innerStatements, context :: currentIfdefs))
+                    }
+                case l: List[Opt[Statement]] =>
+                    l.flatMap(x => x match {
+                        case o@Opt(ft, GotoStatement(id: Id)) if (currentIfdefs.size > 0) =>
+                            val listDiff = listDifference(labelContextMap.get(id.name), currentIfdefs)
+                            if (!listDiff._1.isEmpty) {
+                                println("Goto: " + id.name + " <-> " + currentIfdefs + "\nDiff: " + listDifference(labelContextMap.get(id.name), currentIfdefs))
+                            }
+                            var resultList: List[Opt[Statement]] = List()
+                            val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
+                            for (toBuild <- listDiff._2) {
+                                resultList = afterStmt :: resultList
+                            }
+                            resultList ++ List(o)
+                        case k =>
+                            List(fixLabelAndGotosHelper(k, currentIfdefs))
+                    })
+            })
+            transformation(currentT).getOrElse(currentT).asInstanceOf[T]
+        }
+        fixLabelAndGotosHelper(t)
+    }
+
+    private def listDifference(label: List[String], goto: List[String]): (List[String], List[String]) = {
+        label match {
+            case Nil =>
+                return (List(), goto)
+            case x :: Nil =>
+                goto match {
+                    case Nil =>
+                        return (label, List())
+                    case y :: Nil =>
+                        if (x == y) {
+                            return (List(), List())
+                        } else {
+                            return (label, goto)
+                        }
+                    case y :: ys =>
+                        if (x == y) {
+                            return (List(), ys)
+                        }
+                }
+            case x :: xs =>
+                goto match {
+                    case Nil =>
+                        return (label, List())
+                    case y :: Nil =>
+                        if (x == y) {
+                            return (xs, List())
+                        } else {
+                            return (label, goto)
+                        }
+                    case y :: ys =>
+                        if (y == x) {
+                            return listDifference(xs, ys)
+                        } else {
+                            return (label, goto)
+                        }
+                }
+        }
+        (label, goto)
     }
 
     private def contextToReadableString(context: FeatureExpr): String = {

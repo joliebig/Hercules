@@ -85,10 +85,11 @@ void id2iperf_time_end() {
   printf("Remaining stack size: %d\n", stack_size(&id2iperf_context));
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_addHashMap, (void**)(&id2iperf_tmpvalue));
   id2iperf_data_struct* true_entry = malloc(sizeof(id2iperf_data_struct));
-  true_entry->myTime = t->end - t->start;
+  double trueTime = t->end - t->start;
+  true_entry->myTime = trueTime;
   true_entry->measurements = 1;
   true_entry->numberOfStmts = 0;
-  true_entry->outerDiff = 0;
+  true_entry->outerDiff = trueTime;
   hashmap_put(id2iperf_mymap, "BASE", true_entry);
   printf("-- Hercules Performance --\n");
   printf("Hashmap size: %d\n", hashmap_length(id2iperf_mymap));
@@ -101,6 +102,7 @@ void id2iperf_time_end() {
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_printHashMap, (void**)(&id2iperf_tmpvalue));
   free(id2iperf_tmpvalue);
   free(t);
+  printf("-- Hercules Performance End --\n");
 }
 
 void id2iperf_time_before(char *id2iperf_contextName) {
