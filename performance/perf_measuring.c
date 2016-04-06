@@ -24,7 +24,7 @@ struct  timeval2 {
 typedef struct id2iperf_data_structs {
     char key_string[ID2IPERF_KEY_MAX_LENGTH];
     double myTime;
-    double outerDiff;
+    double outerTime;
     int measurements;
     int numberOfStmts;
 } id2iperf_data_struct;
@@ -58,7 +58,7 @@ map_t id2iperf_mymap;
 
 int id2iperf_printHashMap(any_t *t1, any_t t2, char* key) {
   *t1 = t2;
-  printf("%s -> %f ms, %f ms (measurements: %d; statements: %d)\n", key, id2iperf_tmpvalue->myTime, id2iperf_tmpvalue->outerDiff, id2iperf_tmpvalue->measurements, id2iperf_tmpvalue->numberOfStmts);
+  printf("%s -> %f ms, %f ms (measurements: %d; statements: %d)\n", key, id2iperf_tmpvalue->myTime, id2iperf_tmpvalue->outerTime, id2iperf_tmpvalue->measurements, id2iperf_tmpvalue->numberOfStmts);
   return 0;
 }
 
@@ -82,14 +82,14 @@ void id2iperf_time_end() {
   t->end = tmpTime;
   id2iperf_measurement_counter++;
   //assert(is_empty(id2iperf_times));
-  printf("Remaining stack size: %d\n", stack_size(&id2iperf_context));
+  printf("Remaining stack size: %d\n", stack_size(&id2iperf_times));
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_addHashMap, (void**)(&id2iperf_tmpvalue));
   id2iperf_data_struct* true_entry = malloc(sizeof(id2iperf_data_struct));
   double trueTime = t->end - t->start;
   true_entry->myTime = trueTime;
   true_entry->measurements = 1;
   true_entry->numberOfStmts = 0;
-  true_entry->outerDiff = trueTime;
+  true_entry->outerTime = trueTime;
   hashmap_put(id2iperf_mymap, "BASE", true_entry);
   printf("-- Hercules Performance --\n");
   printf("Hashmap size: %d\n", hashmap_length(id2iperf_mymap));
@@ -148,12 +148,18 @@ void id2iperf_time_after(int statementNo) {
     hashmap_entry->myTime = t->diff;
     hashmap_entry->measurements = 1;
     hashmap_entry->numberOfStmts = statementNo;
-    hashmap_entry->outerDiff = id2iperf_getTime() - t->outerStart;
+    hashmap_entry->outerTime = id2iperf_getTime() - t->outerStart - t->diff;
   } else {
-    id2iperf_tmpvalue->myTime += t->diff;
+    if (t->allowedToPop) {
+      id2iperf_tmpvalue->myTime += t->diff;
+    }
     id2iperf_tmpvalue->measurements++;
     id2iperf_tmpvalue->numberOfStmts += statementNo;
-    id2iperf_tmpvalue->outerDiff += id2iperf_getTime() - t->outerStart;
+    double currentOuterTime = id2iperf_getTime() - t->outerStart - t->diff;
+    id2iperf_tmpvalue->outerTime += currentOuterTime;
+    if (!t->allowedToPop) {
+      id2iperf_tmpvalue->myTime -= currentOuterTime;
+    }
     // Free context since its information is already stored inside the hashmap
     free(tmp_context);
   }
