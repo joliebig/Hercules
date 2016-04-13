@@ -33,4 +33,4 @@ BusyBox case study
 
 SQLite case study
 
-    https://github.com/fgarbe/TypeChef-SQLiteIfdeftoif
+    https://github.com/fgarbe/TypeChef-SQLiteIfdeftoif/
