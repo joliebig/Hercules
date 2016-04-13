@@ -22,3 +22,15 @@ To install the last version of Hercules simply run (from the same folder where t
 Both projects folders `Hercules` and `TypeChef` should now be in your current working directory! In order to use Hercules simply run `./ifdeftoif.sh` in the Hercules directory.
 
 If there are problems creating the Java Virtual Machine tweak the `-Xmx`, `-Xss`, parameters in `Hercules/ifdeftoif.sh`, `Hercules/mkrun.sh`, `TypeChef/publish.sh`
+
+
+Case studies
+----------------------
+
+BusyBox case study
+
+    https://github.com/fgarbe/TypeChef-BusyboxIfdeftoif/
+
+SQLite case study
+
+    https://github.com/fgarbe/TypeChef-SQLiteIfdeftoif
