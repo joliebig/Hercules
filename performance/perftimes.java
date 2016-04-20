@@ -1,18 +1,19 @@
-import com.sun.deploy.util.StringUtils;
-
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
+import java.nio.file.Path;
 
 public class perftimes {
-    private final static String baseName = "BASE";
-    private final static String herculesStartMessage = "-- Hercules Performance --";
-    private final static String herculesEndMessage = "-- Hercules Performance End --";
-    private final static int epsilon = 10;
+    private final static String BASE_NAME = "BASE";
+    private final static String HERCULES_START_MESSAGE = "-- Hercules Performance --";
+    private final static String HERCULES_END_MESSAGE = "-- Hercules Performance End --";
+    private final static int EPSILON = 10;
+    private final static Boolean ASCENDING = true;
+    private final static Boolean DESCENDING = false;
+    private final static Boolean FILTER = true;
+    private final static Double FILTER_THRESHOLD = 0.0005;
+    private final static String NO_LOCATION = "";
 
-    public static class TimeContent {
+    public static class TimeContent implements Comparable<TimeContent> {
         private String additionalContent;
         private Double originalTime;
         private Double finalTime;
@@ -48,6 +49,10 @@ public class perftimes {
 
         public Double getOuterTime() {
             return this.outerTime;
+        }
+
+        public List<Double> getAllTimes() {
+            return this.allTimes;
         }
 
         public double getFinalTime() {
@@ -108,12 +113,17 @@ public class perftimes {
             str.append("]");
             return str.toString();
         }
+
+        @Override
+        public int compareTo(TimeContent other) {
+            return Double.compare(this.getFinalTime(), other.getFinalTime());
+        }
     }
 
     public static void main(String[] args) {
         if (args.length == 0) {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-                execute(reader);
+                execute(reader, NO_LOCATION);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -121,7 +131,7 @@ public class perftimes {
             File file = new File(args[0]);
             if (file.exists() && !file.isDirectory()) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                    execute(reader);
+                    execute(reader, getFileNameWithCSVExtension(file));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -133,7 +143,20 @@ public class perftimes {
         }
     }
 
-    static private void execute(BufferedReader bufReader) throws IOException {
+    static private String getFileNameWithoutExtension(File file) {
+        String fileName = file.getAbsolutePath();
+        int pos = fileName.lastIndexOf(".");
+        if (pos > 0) {
+            fileName = fileName.substring(0, pos);
+        }
+        return fileName;
+    }
+
+    static private String getFileNameWithCSVExtension(File file) {
+        return getFileNameWithoutExtension(file) + ".csv";
+    }
+
+    static private void execute(BufferedReader bufReader, String location) throws IOException {
         HashMap<String, TimeContent> myCompleteMap = new HashMap<String, TimeContent>();
         HashMap<String, TimeContent> myMap = new HashMap<String, TimeContent>();
 
@@ -152,14 +175,14 @@ public class perftimes {
                     Double outerTime = Double.parseDouble(featureAndTime[0]);
                     TimeContent timeContent = new TimeContent(featureAndTime[1], time, time, outerTime);
                     myMap.put(featureName, timeContent);
-                } else if (line.equals(herculesEndMessage)) {
+                } else if (line.equals(HERCULES_END_MESSAGE)) {
                     started = false;
                     String[] keyArray = myMap.keySet().toArray(new String[myMap.size()]);
                     for (int i = 0; i < myMap.size(); i++) {
                         double currentTime = myMap.get(keyArray[i]).getOriginalTime();
                         for (int j = 0; j < myMap.size(); j++) {
                             if (i != j && isSuccessor(keyArray[i], keyArray[j])) {
-                                /*if (keyArray[i].equals(baseName)) {
+                                /*if (keyArray[i].equals(BASE_NAME)) {
                                     System.out.println("ERROR: " + currentTime + " <-> " + keyArray[j]);
                                 }*/
                                 currentTime -= myMap.get(keyArray[j]).getOuterTime();
@@ -181,7 +204,7 @@ public class perftimes {
                 } else {
                     //System.out.println(line);
                 }
-            } else if (line.equals(herculesStartMessage)) {
+            } else if (line.equals(HERCULES_START_MESSAGE)) {
                 runCounter++;
                 started = true;
             } else if (line.startsWith("Performance counter: ")) {
@@ -191,9 +214,58 @@ public class perftimes {
         if (runCounter > 1) {
             System.out.println("Number of runs: " + runCounter);
         }
+        myCompleteMap = sortByValues(myCompleteMap, DESCENDING);
+
+        StringBuilder str = new StringBuilder();
+        String prefix = "";
         for (String current: myCompleteMap.keySet()) {
-            System.out.println(current + " -> " + myCompleteMap.get(current));
+            if (FILTER && myCompleteMap.get(current).getFinalTime() > FILTER_THRESHOLD) {
+                int id = 0;
+                for (Double currentTime: myCompleteMap.get(current).getAllTimes()) {
+                    str.append(prefix);
+                    prefix = "\n";
+                    str.append(String.format("%s,%d,%.6f", current, id++, currentTime));
+                }
+                System.out.println(current + " -> " + myCompleteMap.get(current));
+            } else if (!FILTER) {
+                int id = 0;
+                for (Double currentTime: myCompleteMap.get(current).getAllTimes()) {
+                    str.append(prefix);
+                    prefix = "\n";
+                    str.append(String.format("%s,%d,%.6f", current, id++, currentTime));
+                }
+                System.out.println(current + " -> " + myCompleteMap.get(current));
+            }
         }
+
+        if (runCounter > 1 && !location.equals(NO_LOCATION)) {
+            PrintWriter writer = new PrintWriter(location, "UTF-8");
+            writer.print(str.toString());
+            writer.close();
+        }
+    }
+
+    private static HashMap sortByValues(HashMap map, Boolean ascending) {
+        List list = new LinkedList(map.entrySet());
+        if (ascending) {
+            Collections.sort(list, new Comparator() {
+                public int compare(Object o1, Object o2) {
+                    return (((Double)((TimeContent)((Map.Entry) (o1)).getValue()).getFinalTime()).compareTo(((TimeContent)((Map.Entry) (o2)).getValue()).getFinalTime()));
+                }
+            });
+        } else {
+            Collections.sort(list, new Comparator() {
+                public int compare(Object o1, Object o2) {
+                    return (((Double)((TimeContent)((Map.Entry) (o2)).getValue()).getFinalTime()).compareTo(((TimeContent)((Map.Entry) (o1)).getValue()).getFinalTime()));
+                }
+            });
+        }
+        HashMap sortedHashMap = new LinkedHashMap();
+        for (Iterator it = list.iterator(); it.hasNext();) {
+            Map.Entry entry = (Map.Entry) it.next();
+            sortedHashMap.put(entry.getKey(), entry.getValue());
+        }
+        return sortedHashMap;
     }
 
     static private int getNumberOfDividers(String string) {
@@ -201,10 +273,10 @@ public class perftimes {
     }
 
     static private boolean isSuccessor(String shortString, String possibleSuccessorString) {
-        return (shortString.equals(baseName) && getNumberOfDividers(possibleSuccessorString) == 0) || (possibleSuccessorString.startsWith(shortString + "#") && getNumberOfDividers(possibleSuccessorString) == getNumberOfDividers(shortString) + 1);
+        return (shortString.equals(BASE_NAME) && getNumberOfDividers(possibleSuccessorString) == 0) || (possibleSuccessorString.startsWith(shortString + "#") && getNumberOfDividers(possibleSuccessorString) == getNumberOfDividers(shortString) + 1);
     }
 
     static private boolean areInEpsilon(Double firstTime, Double secondTime) {
-        return Math.abs(firstTime - secondTime) / ((firstTime + secondTime) / 2) < epsilon;
+        return Math.abs(firstTime - secondTime) / ((firstTime + secondTime) / 2) < EPSILON;
     }
 }

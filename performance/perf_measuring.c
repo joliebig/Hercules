@@ -50,8 +50,9 @@ double id2iperf_getElapsedTime(struct timeval2 t1, struct timeval2 t2) {
 
 pstack id2iperf_context = 0;
 pstack id2iperf_times = 0;
-double id2iperf_context_time = 0;
+double id2iperf_context_time = 0.0;
 double id2iperf_measurement_time = 0.081396;
+double total_overhead = 0.0;
 int id2iperf_measurement_counter = 0;
 id2iperf_data_struct* id2iperf_tmpvalue;
 map_t id2iperf_mymap;
@@ -59,6 +60,7 @@ map_t id2iperf_mymap;
 int id2iperf_printHashMap(any_t *t1, any_t t2, char* key) {
   *t1 = t2;
   printf("%s -> %f ms, %f ms (measurements: %d; statements: %d)\n", key, id2iperf_tmpvalue->myTime, id2iperf_tmpvalue->outerTime, id2iperf_tmpvalue->measurements, id2iperf_tmpvalue->numberOfStmts);
+  total_overhead += id2iperf_tmpvalue->outerTime;
   return 0;
 }
 
@@ -89,19 +91,19 @@ void id2iperf_time_end() {
   true_entry->myTime = trueTime;
   true_entry->measurements = 1;
   true_entry->numberOfStmts = 0;
-  true_entry->outerTime = trueTime;
+  true_entry->outerTime = 0;
   hashmap_put(id2iperf_mymap, "BASE", true_entry);
   printf("-- Hercules Performance --\n");
   printf("Hashmap size: %d\n", hashmap_length(id2iperf_mymap));
   printf("Measurement counter: %d\n", id2iperf_measurement_counter);
   hashmap_get(id2iperf_mymap, "BASE", (void**)(&id2iperf_tmpvalue));
   double total_time = true_entry->myTime;
-  printf("Total time: %f ms\n", total_time);
   //double measurement_time = total_time - (id2iperf_measurement_counter * id2iperf_measurement_time);
   //printf("Approximated execution time without measurement time: %f ms\n", measurement_time);
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_printHashMap, (void**)(&id2iperf_tmpvalue));
   free(id2iperf_tmpvalue);
   free(t);
+  printf("Total time: %f ms (overhead: %f)\n", total_time, total_overhead);
   printf("-- Hercules Performance End --\n");
 }
 

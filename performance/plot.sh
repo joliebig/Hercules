@@ -1,0 +1,1 @@
+R --slave --no-restore --no-save < $1
