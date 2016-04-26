@@ -103,7 +103,7 @@ void id2iperf_time_end() {
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_printHashMap, (void**)(&id2iperf_tmpvalue));
   free(id2iperf_tmpvalue);
   free(t);
-  printf("Total time: %f ms (overhead: %f)\n", total_time, total_overhead);
+  printf("Total time: %f ms (overhead: %f)\n", total_time - total_overhead, total_overhead);
   printf("-- Hercules Performance End --\n");
 }
 
