@@ -401,7 +401,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                     } else {
                         CompoundStatement(fixLabelAndGotosHelper(cs.innerStatements, context :: currentIfdefs))
                     }
-                case l: List[Opt[Statement]] =>
+                case l: List[_] =>
                     l.flatMap(x => x match {
                         case o@Opt(ft, GotoStatement(id: Id)) if (currentIfdefs.size > 0) =>
                             val listDiff = listDifference(labelContextMap.get(id.name), currentIfdefs)
@@ -414,8 +414,10 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                                 resultList = afterStmt :: resultList
                             }
                             resultList ++ List(o)
-                        case k =>
+                        case k: Opt[_] =>
                             List(fixLabelAndGotosHelper(k, currentIfdefs))
+                        case _ =>
+                            List()
                     })
             })
             transformation(currentT).getOrElse(currentT).asInstanceOf[T]

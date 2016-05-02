@@ -56,28 +56,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     private val fs = System.getProperty("file.separator")
     // Default feature selection state for features which do not appear in the .config file, false = off, true = on
     private val defaultFeatureSelection = false
-    /* Path variables */
-    private val path = new File("..").getCanonicalPath ++ fs ++ "ifdeftoif" ++ fs
-    private val performancePath = new File("..").getCanonicalPath ++ fs ++ "Hercules" ++ fs ++ "performance" ++ fs
-    // Path used to serialize the features found in the current AST
-    private val serializedFeaturePath = path ++ "featureSet.txt"
-    // Path to an extern struct declaration
-    private val externOptionStructPath = path ++ "id2i_optionstruct.h"
     private val id2i_rewrite_label = "id2i.rewrite: "
     private val id2i_remove_label = "id2i.remove: "
     private val id2i_exceeds_label = "id2i.exceeds: "
-    // Path to the statistics file
-    private val statisticsPath = path ++ "statistics.csv"
-    // Path to a file containing skipped program elements where the variant number exceeds the duplicationThreshold
-    private val skippedDuplicationsPath = path ++ "skipped_duplications.txt"
-    // Path to the top level statistics file
-    private val topLevelStatisticsPath = path ++ "top_level_statistics.csv"
-    // Path to the type error file
-    private val typeErrorPath = path ++ "type_errors.txt"
-    // Path to the external declaration file, contains information about multiple occurences of the same external declaration
-    private val externalDeclPath = path ++ "external_declarations.txt"
-    // Default config path
-    private val defConfig = new File("..").getCanonicalPath ++ fs ++ "TypeChef-BusyboxAnalysis" ++ fs ++ "BusyBoxDefConfig.config"
     // Name of the initialized ifdeftoif configuration struct
     private val featureStructInitializedName = "id2i"
     // nName of the function used to assign values to the struct members in the configuration struct
@@ -319,70 +300,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-      * Converts the name of a feature 'n' and a given target expression 'e' into an assignment in the form of id2i.'n' = 'e';
-      *
-      * @param featureName
-      * @param assignmentSource
-      * @return
-      */
-    private def featureToAssignment(featureName: String, assignmentSource: Expr): Opt[ExprStatement] = {
-        if (exportOptionsAsStruct) {
-            Opt(trueF,
-                ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
-                    PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
-        } else {
-            Opt(trueF,
-                ExprStatement(AssignExpr(Id(getFeatureName(featureName)), "=", assignmentSource)))
-        }
-    }
-
-    def getFeatureName(name: String): String = {
-        featurePrefix + name.toLowerCase
-    }
-
-    /**
-      * Converts a set of FeatureExpressions into a struct declaration.
-      */
-    private def getOptionStruct(defExSet: Set[SingleFeatureExpr]): List[Opt[Declaration]] = {
-        if (exportOptionsAsStruct) {
-            val structDeclList = defExSet.map(x => {
-                featureToStructDeclaration(x.feature)
-            }).toList.sortWith(_.toString < _.toString)
-            List(Opt(trueF, createDeclaration(structDeclList)))
-        } else {
-            defExSet.map(x => Opt(trueF, Declaration(List(Opt(trueF, IntSpecifier())), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(getFeatureName(x.feature)), List()), List(), None))), List()))).toList.sortWith(_.toString < _.toString)
-        }
-    }
-
-    /**
-      * Converts the name of a feature to an AST element of the type StructDeclaration. Ex: "CONFIG_X64" -> int config_x64
-      *
-      * @param featureName
-      * @return
-      */
-    private def featureToStructDeclaration(featureName: String): Opt[StructDeclaration] = {
-        Opt(trueF, StructDeclaration(List(Opt(trueF, IntSpecifier())),
-            List(Opt(trueF,
-                StructDeclarator(
-                    AtomicNamedDeclarator(List(), Id(getFeatureName(featureName)), List()),
-                    None,
-                    List())))))
-    }
-
-    /**
-      * Converts a list of StructDeclarations into a Declaration. Ex: List(int config_x64) -> struct ifdefoptions {int config_x64;} id2i;
-      *
-      * @param structDeclList
-      * @return
-      */
-    private def createDeclaration(structDeclList: List[Opt[StructDeclaration]]): Declaration = {
-        Declaration(List(Opt(trueF,
-            StructOrUnionSpecifier(false, Some(Id(featureStructName)), Some(structDeclList), List(), List()))),
-            List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()),
-                List(), None))))
-    }
-
-    /**
       * Appends the featurePrefix to feature expressions.
       */
     def getFeatureName(fExpr: FeatureExpr): String = {
@@ -437,6 +354,9 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         externOptionStructPath
     }
 
+    // Path used to serialize the features found in the current AST
+    private def serializedFeaturePath = path ++ "featureSet.txt"
+
     /**
       * Loads a serialized Set of SingleFeatureExpressions.
       */
@@ -469,6 +389,58 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         PrettyPrinter.printF(TranslationUnit(structDeclaration ++ List(externDeclaration, initFunction)), externOptionStructPath, prefix)
     }
 
+    // Path to an extern struct declaration
+    private def externOptionStructPath = path ++ "id2i_optionstruct.h"
+
+    /* Path variables */
+    private def path = new File("..").getCanonicalPath ++ fs ++ "ifdeftoif" ++ fs
+
+    /**
+      * Converts a set of FeatureExpressions into a struct declaration.
+      */
+    private def getOptionStruct(defExSet: Set[SingleFeatureExpr]): List[Opt[Declaration]] = {
+        if (exportOptionsAsStruct) {
+            val structDeclList = defExSet.map(x => {
+                featureToStructDeclaration(x.feature)
+            }).toList.sortWith(_.toString < _.toString)
+            List(Opt(trueF, createDeclaration(structDeclList)))
+        } else {
+            defExSet.map(x => Opt(trueF, Declaration(List(Opt(trueF, IntSpecifier())), List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(getFeatureName(x.feature)), List()), List(), None))), List()))).toList.sortWith(_.toString < _.toString)
+        }
+    }
+
+    def getFeatureName(name: String): String = {
+        featurePrefix + name.toLowerCase
+    }
+
+    /**
+      * Converts the name of a feature to an AST element of the type StructDeclaration. Ex: "CONFIG_X64" -> int config_x64
+      *
+      * @param featureName
+      * @return
+      */
+    private def featureToStructDeclaration(featureName: String): Opt[StructDeclaration] = {
+        Opt(trueF, StructDeclaration(List(Opt(trueF, IntSpecifier())),
+            List(Opt(trueF,
+                StructDeclarator(
+                    AtomicNamedDeclarator(List(), Id(getFeatureName(featureName)), List()),
+                    None,
+                    List())))))
+    }
+
+    /**
+      * Converts a list of StructDeclarations into a Declaration. Ex: List(int config_x64) -> struct ifdefoptions {int config_x64;} id2i;
+      *
+      * @param structDeclList
+      * @return
+      */
+    private def createDeclaration(structDeclList: List[Opt[StructDeclaration]]): Declaration = {
+        Declaration(List(Opt(trueF,
+            StructOrUnionSpecifier(false, Some(Id(featureStructName)), Some(structDeclList), List(), List()))),
+            List(Opt(trueF, InitDeclaratorI(AtomicNamedDeclarator(List(), Id(featureStructInitializedName), List()),
+                List(), None))))
+    }
+
     /**
       * Takes a list of tuples of SingleFeatureExpr and Boolean to return an init function which
       * assigns values to the struct members of the ifdeftoif config struct according to the feature selection states
@@ -486,6 +458,24 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             }
         })
         FunctionDef(List(Opt(trueF, VoidSpecifier())), AtomicNamedDeclarator(List(), Id(initFunctionName), List(Opt(trueF, DeclIdentifierList(List())))), List(), CompoundStatement(exprStmts))
+    }
+
+    /**
+      * Converts the name of a feature 'n' and a given target expression 'e' into an assignment in the form of id2i.'n' = 'e';
+      *
+      * @param featureName
+      * @param assignmentSource
+      * @return
+      */
+    private def featureToAssignment(featureName: String, assignmentSource: Expr): Opt[ExprStatement] = {
+        if (exportOptionsAsStruct) {
+            Opt(trueF,
+                ExprStatement(AssignExpr(PostfixExpr(Id(featureStructInitializedName),
+                    PointerPostfixSuffix(".", Id(getFeatureName(featureName)))), "=", assignmentSource)))
+        } else {
+            Opt(trueF,
+                ExprStatement(AssignExpr(Id(getFeatureName(featureName)), "=", assignmentSource)))
+        }
     }
 
     /**
@@ -1362,12 +1352,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         "_" + getFromIdMap(feat) + "_"
     }
 
-    private def updateIdMap(feat: FeatureExpr) = {
-        if (!presenceConditionNumberMap.contains(feat)) {
-            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
-        }
-    }
-
     /**
       * Retrieves the FeatureExpression which is mapped to the given number. Used for the second run of the
       * ifdeftoif transformation to retrieve the context of an already renamed identifier.
@@ -1384,6 +1368,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 }
             }
             None
+        }
+    }
+
+    private def updateIdMap(feat: FeatureExpr) = {
+        if (!presenceConditionNumberMap.contains(feat)) {
+            presenceConditionNumberMap += (feat -> presenceConditionNumberMap.size)
         }
     }
 
@@ -1658,33 +1648,6 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
     }
 
     /**
-     * Takes a look at the CaseStatements and CompoundStatements inside a SwitchStatement in order to determine
-     * the list of FeatureExpressions needed for duplication.
-     *
-      * def computeCaseFeatures(cmpStmt: CompoundStatement, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
-      * /*def collectCaseStatements(compStmt: CompoundStatement, currentList: List[List[Opt[CaseStatement]]] = List(List())) : List[List[Opt[CaseStatement]]] = {
-      * val stmts = compStmt.innerStatements
-      * if (stmts.isEmpty){
-      * currentList
-      * } else if (stmts.head.entry.isInstanceOf[CaseStatement]) {
-      * collectCaseStatements(CompoundStatement(stmts.tail), ((stmts.head.asInstanceOf[Opt[CaseStatement]] :: currentList.head) :: currentList.tail))
-      * } else if (stmts.head.entry.isInstanceOf[CompoundStatement]) {
-      * collectCaseStatements(CompoundStatement(stmts.tail), (List() :: currentList))
-      * } else {
-      * currentList.drop(1)
-      * }
-      * }
-      * val caseStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[CaseStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
-      * val defaultStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[DefaultStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
-      * val totalStatements = (caseStatements ++ defaultStatements).filter(x => !x.isEmpty)
-      * computeCarthesianProduct(totalStatements)*/
-      * val caseFeatures = getFeatureCombinations(cmpStmt.innerStatements.map(x => {
-      * x.feature
-      * }).filter(x => !x.equivalentTo(trueF)).flatMap(x => x.collectDistinctFeatureObjects).distinct).filter(x => x.implies(currentContext).isTautology(fm))
-      * caseFeatures
-      * }*/
-
-    /**
       * Retrieves a list of feature expressions which represent the different variants according to the feature
       * expressions that are found inside the Opt nodes in given element a.
       * This also checks subelements of a unless they are new statements like for example an ExpressionStatement inside an IfStatement.
@@ -1955,6 +1918,33 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
             NAryExpr(expr, List(Opt(trueF, NArySubExpr(operator, expr2))))
         }
     }
+
+    /**
+      * Takes a look at the CaseStatements and CompoundStatements inside a SwitchStatement in order to determine
+      * the list of FeatureExpressions needed for duplication.
+      *
+      * def computeCaseFeatures(cmpStmt: CompoundStatement, currentContext: FeatureExpr = trueF): List[FeatureExpr] = {
+      * /*def collectCaseStatements(compStmt: CompoundStatement, currentList: List[List[Opt[CaseStatement]]] = List(List())) : List[List[Opt[CaseStatement]]] = {
+      * val stmts = compStmt.innerStatements
+      * if (stmts.isEmpty){
+      * currentList
+      * } else if (stmts.head.entry.isInstanceOf[CaseStatement]) {
+      * collectCaseStatements(CompoundStatement(stmts.tail), ((stmts.head.asInstanceOf[Opt[CaseStatement]] :: currentList.head) :: currentList.tail))
+      * } else if (stmts.head.entry.isInstanceOf[CompoundStatement]) {
+      * collectCaseStatements(CompoundStatement(stmts.tail), (List() :: currentList))
+      * } else {
+      * currentList.drop(1)
+      * }
+      * }
+      * val caseStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[CaseStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
+      * val defaultStatements = cmpStmt.innerStatements.filter(x => x.entry.isInstanceOf[DefaultStatement]).map(x => computeNextRelevantFeatures(x, currentContext))
+      * val totalStatements = (caseStatements ++ defaultStatements).filter(x => !x.isEmpty)
+      * computeCarthesianProduct(totalStatements)*/
+      * val caseFeatures = getFeatureCombinations(cmpStmt.innerStatements.map(x => {
+      * x.feature
+      * }).filter(x => !x.equivalentTo(trueF)).flatMap(x => x.collectDistinctFeatureObjects).distinct).filter(x => x.implies(currentContext).isTautology(fm))
+      * caseFeatures
+      * }*/
 
     /**
       * Handles IfStatements in different steps:
@@ -2663,6 +2653,26 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
         r(ast)
         false
     }
+
+    private def performancePath = new File("..").getCanonicalPath ++ fs ++ "Hercules" ++ fs ++ "performance" ++ fs
+
+    // Path to the statistics file
+    private def statisticsPath = path ++ "statistics.csv"
+
+    // Path to a file containing skipped program elements where the variant number exceeds the duplicationThreshold
+    private def skippedDuplicationsPath = path ++ "skipped_duplications.txt"
+
+    // Path to the top level statistics file
+    private def topLevelStatisticsPath = path ++ "top_level_statistics.csv"
+
+    // Path to the type error file
+    private def typeErrorPath = path ++ "type_errors.txt"
+
+    // Path to the external declaration file, contains information about multiple occurences of the same external declaration
+    private def externalDeclPath = path ++ "external_declarations.txt"
+
+    // Default config path
+    private def defConfig = new File("..").getCanonicalPath ++ fs ++ "TypeChef-BusyboxAnalysis" ++ fs ++ "BusyBoxDefConfig.config"
 
     private def defaultConfigurationParameter(): Constant = {
         Constant(defaultValue)
