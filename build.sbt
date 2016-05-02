@@ -42,7 +42,7 @@ mainClass in Runtime := Some("de.fosd.typechef.cifdeftoif.IfdeftoifFrontend")
 TaskKey[File]("mkrun") <<= (baseDirectory, fullClasspath in Runtime, mainClass in Runtime) map {
     (base, cp, main) =>
         val template = """#!/bin/sh
-java -ea -Xmx6G -Xss512M -XX:PermSize=512M -XX:MaxPermSize=1024M -classpath "%s" %s --ifdeftoif "$@"
+java -ea -Xmx6G -Xss512M -classpath "%s" %s --ifdeftoif "$@"
                        """
         val mainStr = main getOrElse error("No main class specified")
         val contents = template.format(cp.files.absString, mainStr)
