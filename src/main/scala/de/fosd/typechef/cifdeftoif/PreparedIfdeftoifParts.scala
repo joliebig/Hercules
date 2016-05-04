@@ -96,7 +96,7 @@ object PreparedIfdeftoifParts {
 
     def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: Opt[_]): (T, Int) = {
         var num_matches = 0
-        val r = manytd(rule {
+        val r = manytd(rule[Any] {
             case l: List[_] =>
                 l.flatMap(x =>
                     if (x == mark) {
@@ -110,7 +110,7 @@ object PreparedIfdeftoifParts {
 
     def replaceManyTD[T <: Product](t: T, mark: Opt[_], replace: List[Opt[_]]): (T, Int) = {
         var num_matches = 0
-        val r = manytd(rule {
+        val r = manytd(rule[Any] {
             case l: List[_] =>
                 l.flatMap(x =>
                     if (x == mark) {

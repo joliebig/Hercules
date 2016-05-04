@@ -240,7 +240,7 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     @Test
     def unsat_content() {
         val file = new File(ifdeftoifTestPath + "unsat_content.c")
-        val featureModel = FeatureExprLib.featureModelFactory().createFromDimacsFile(ifdeftoifTestPath + "unsat_content.dimacs", "")
+        val featureModel = FeatureExprLib.featureModelFactory().createFromDimacsFile(ifdeftoifTestPath + "unsat_content.dimacs")
         assert(testFileSemanticsComplete(file, List(0), featureModel))
     }
 

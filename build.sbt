@@ -4,11 +4,11 @@ version := "1.0"
 
 organization := "de.fosd.typechef"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.7"
 
-libraryDependencies += "de.fosd.typechef" % "frontend_2.10" % "0.3.6"
+libraryDependencies += "de.fosd.typechef" % "frontend_2.11" % "0.4.1"
 
-libraryDependencies += "de.fosd.typechef" % "sampling_2.10" % "0.3.6"
+libraryDependencies += "de.fosd.typechef" % "sampling_2.11" % "0.4.1"
 
 libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test"
 
@@ -31,7 +31,6 @@ scalacOptions ++= Seq("-deprecation",
     "-feature",
     "-language:postfixOps",
     "-language:reflectiveCalls",
-    "-language:higherkinds",
     "-language:implicitConversions")
 
 resolvers += "SonaType" at "http://oss.sonatype.org/content/repositories/snapshots/"

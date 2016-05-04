@@ -18,11 +18,9 @@ class IfdefToIfOptions extends FrontendOptionsWithConfigFiles {
     private final val F_MD: Char = Options.genOptionId // dependency output option of gcc
 
     var performance: Boolean = false
-    var ifdeftoif: Boolean = false
     var ifdeftoifstatistics: Boolean = false
     var ifdeftoifnocheck: Boolean = false
     var simple_switch_transformation: Boolean = false
-    var decluse: Boolean = false
     var externoptions: Boolean = true
     var featureConfig: Boolean = false
 

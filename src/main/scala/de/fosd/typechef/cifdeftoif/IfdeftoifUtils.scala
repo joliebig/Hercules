@@ -14,7 +14,7 @@ object IfdeftoifUtils {
      */
     def getSingleFeatures(a: Any): Set[SingleFeatureExpr] = {
         var featureSet: Set[FeatureExpr] = Set()
-        val r = manytd(query {
+        val r = manytd(query[Any] {
             case Opt(ft, _) =>
                 featureSet += ft
             case Choice(ft, _, _) =>

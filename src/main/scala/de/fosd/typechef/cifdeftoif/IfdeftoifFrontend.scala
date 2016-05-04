@@ -139,7 +139,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
                     stopWatch.start("typechecking")
                     println("type checking")
-                    val typeCheckStatus = ts.checkAST()
+                    val typeCheckStatus = ts.checkAST().isEmpty
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
                         if (typeCheckStatus) {

@@ -4,7 +4,7 @@ import java.io._
 
 import de.fosd.typechef.conditional.Opt
 import de.fosd.typechef.featureexpr.{FeatureExpr, FeatureExprFactory, FeatureModel}
-import de.fosd.typechef.parser.c.{DeclIdentifierList, DeclParameterDeclList, Declaration, ElifStatement, EnumSpecifier, Enumerator, FunctionDef, IfStatement, StructDeclaration, StructOrUnionSpecifier, TranslationUnit, TypedefSpecifier, _}
+import de.fosd.typechef.parser.c._
 import org.kiama.rewriting.Rewriter._
 
 import scala.reflect.ClassTag
@@ -178,7 +178,7 @@ trait IfdefToIfStatistics extends IfdefToIfStatisticsInterface with IOUtilities 
     private def countNumberOfVariableElements[T <: Any](ast: AST)(implicit m: ClassTag[T]): Long = {
         var res = 0
         var currentContext = trueF2
-        val variable = manytd(query {
+        val variable = manytd(query[Any] {
             case l: List[_] =>
             case o@Opt(ft, entry: AST) =>
                 if ((ft.implies(currentContext).isTautology(fm2) && !ft.equivalentTo(currentContext)) && m.runtimeClass.isInstance(entry)) {
@@ -201,7 +201,7 @@ trait IfdefToIfStatistics extends IfdefToIfStatisticsInterface with IOUtilities 
         var functions: Long = 0
         var ifElifStatements: Long = 0
 
-        val variable = manytd(query {
+        val variable = manytd(query[Any] {
             case l: List[_] =>
             case p: Product =>
                 astNodes = astNodes + 1
