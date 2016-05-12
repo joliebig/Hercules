@@ -79,7 +79,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     }
 
     override def fixBreakAndContinues[T <: Product](t: T, ifdefDepth: Int = 0, forDoWhileIfdefDepth: Int = 0, switchIfdefDepth: Int = 0, lastStmtWasSwitch: Boolean = false): T = {
-        val transformation = alltd(rule[Any] {
+        val transformation = alltd(rule[Product] {
             case Opt(ft, i@IfStatement(cond, _, _, _)) =>
                 if (isIfdeftoifCondition2(cond)) {
                     Opt(ft, fixBreakAndContinues(i, ifdefDepth + 1, forDoWhileIfdefDepth, switchIfdefDepth, lastStmtWasSwitch))
@@ -242,7 +242,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         val afterStmt = ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant(numberOfStatements.toString)))))))
 
         def alterStatementHelper[T <: Product](t: T, continueExitsContext: Boolean = true): T = {
-            val transformation = alltd(rule[Any] {
+            val transformation = alltd(rule[Product] {
                 case i@IfStatement(cond, One(CompoundStatement(List(Opt(ft, ContinueStatement())))), List(), None) =>
                     if (continueExitsContext) {
                         IfStatement(cond, One(CompoundStatement(List(Opt(trueF3, afterStmt), Opt(ft, ContinueStatement())))), List(), None)
@@ -267,7 +267,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
             })
             transformation(t).getOrElse(t).asInstanceOf[T]
         }
-        val r = manytd(rule[Any] {
+        val r = manytd(rule[Statement] {
             case i@IfStatement(cond, One(CompoundStatement(List(Opt(ft, ContinueStatement())))), List(), None) =>
                 IfStatement(cond, One(CompoundStatement(List(Opt(trueF3, afterStmt), Opt(ft, ContinueStatement())))), List(), None)
             case CompoundStatement(innerStmts) =>
@@ -375,7 +375,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     private def fixLabelAndGotos[T <: Product](t: T): T = {
         val labelContextMap: java.util.HashMap[String, List[String]] = new java.util.HashMap()
         def getLabelContext[T <: Product](currentT: T, ifdefs: List[String] = List()): T = {
-            val labelContext = alltd(rule[Any] {
+            val labelContext = alltd(rule[Product] {
                 case cs: CompoundStatement =>
                     val context = getContext(cs, false)
                     if (context == "") {
@@ -393,7 +393,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         getLabelContext(t)
 
         def fixLabelAndGotosHelper[T <: Product](currentT: T, currentIfdefs: List[String] = List()): T = {
-            val transformation = alltd(rule[Any] {
+            val transformation = alltd(rule[Product] {
                 case cs: CompoundStatement =>
                     val context = getContext(cs, false)
                     if (context == "") {
@@ -403,11 +403,11 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                     }
                 case l: List[_] =>
                     l.flatMap(x => x match {
-                        case o@Opt(ft, GotoStatement(id: Id)) if (currentIfdefs.size > 0) =>
+                        case o@Opt(ft, GotoStatement(id: Id)) if (currentIfdefs.size > 0 && labelContextMap.containsKey(id.name)) =>
                             val listDiff = listDifference(labelContextMap.get(id.name), currentIfdefs)
-                            if (!listDiff._1.isEmpty) {
+                            /*if (!listDiff._1.isEmpty) {
                                 println("Goto: " + id.name + " <-> " + currentIfdefs + "\nDiff: " + listDifference(labelContextMap.get(id.name), currentIfdefs))
-                            }
+                            }*/
                             var resultList: List[Opt[Statement]] = List()
                             val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
                             for (toBuild <- listDiff._2) {
