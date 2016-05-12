@@ -139,7 +139,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
                     stopWatch.start("typechecking")
                     println("type checking")
-                    val typeCheckStatus = ts.checkAST().isEmpty
+                    val typeCheckStatus = ts.checkASTSilent().isEmpty
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
                         if (typeCheckStatus) {
@@ -161,7 +161,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                             //val includeStructFilename = opt.getincludeStructFilename()
                             if (replacementDefintionsFile.exists() && !opt.reuseAST) {
                                 ts = new CTypeSystemFrontend(ast_replaced, fullFM, opt) with CTypeCache with CDeclUse
-                                ts.checkASTSilent
+                                ts.checkASTSilent()
                                 ast = ast_replaced
                             }
                             i.setSimpleSwitchTransformation(opt.simple_switch_transformation)
