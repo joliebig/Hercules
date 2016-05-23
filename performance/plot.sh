@@ -1,1 +1,1 @@
-R --slave --no-restore --no-save < $1
+R --slave --no-restore --no-save "--args $2" < $1
