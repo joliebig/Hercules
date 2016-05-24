@@ -1114,7 +1114,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         List(Opt(trueF,
                                             IfStatement(
                                                 One(toCExpr(featExprDiff)),
-                                                One(insertPerfFunctCalls(replaceAndTransform(cs, newCtx, isTopLevel, functionContext), featExprDiff)),
+                                                One(insertPerfFunctCalls(CompoundStatement(List(Opt(trueF, replaceAndTransform(cs, newCtx, isTopLevel, functionContext)))), featExprDiff)),
                                                 List(),
                                                 None)))
                                     }
