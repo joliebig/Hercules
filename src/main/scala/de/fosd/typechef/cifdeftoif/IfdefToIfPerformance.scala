@@ -119,6 +119,13 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                             result = afterStmt :: result
                         }
                         result ++ List(returnMacroCall)
+                    case o@Opt(ft, ExprStatement(PostfixExpr(Id(name), _))) if name.equals(returnMacroName) && ifdefDepth > 0 =>
+                        var result: List[Opt[Statement]] = List()
+                        val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
+                        for (counter <- 1 until ifdefDepth - forDoWhileIfdefDepth) {
+                            result = afterStmt :: result
+                        }
+                        result ++ List(o)
                     case Opt(ft, ContinueStatement()) if ifdefDepth > 0 =>
                         var result: List[Opt[Statement]] = List()
                         val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
@@ -135,7 +142,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                         } else {
                             limit = forDoWhileIfdefDepth
                         }
-                        for (counter <- 1 until ifdefDepth - limit) {
+                        for (counter <- 0 until ifdefDepth - limit) {
                             result = afterStmt :: result
                         }
                         result ++ List(Opt(ft, BreakStatement()))
@@ -286,11 +293,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
             //val newCompound = r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement]
             //val newCompound = alterStatementHelper(cmpstmt)
             val newCompound = cmpstmt
-            if (last.entry.isInstanceOf[BreakStatement]) {
-                result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ newCompound.innerStatements.take(newCompound.innerStatements.size - 1) ++ List(Opt(trueF3, afterStmt)) ++ List(last))
-            } else {
-                result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ newCompound.innerStatements ++ List(Opt(trueF3, afterStmt)))
-            }
+            result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ newCompound.innerStatements ++ List(Opt(trueF3, afterStmt)))
         }
         return result
         /*if (last.entry.isInstanceOf[ReturnStatement]) {
