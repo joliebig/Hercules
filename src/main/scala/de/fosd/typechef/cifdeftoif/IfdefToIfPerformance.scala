@@ -107,7 +107,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                     case Opt(ft, ReturnStatement(None)) if ifdefDepth > 0 =>
                         var result: List[Opt[Statement]] = List()
                         val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
-                        for (counter <- 0 until ifdefDepth - forDoWhileIfdefDepth) {
+                        for (counter <- 0 until ifdefDepth) {
                             result = afterStmt :: result
                         }
                         result ++ List(Opt(ft, ReturnStatement(None)))
@@ -115,7 +115,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                         var result: List[Opt[Statement]] = List()
                         val afterStmt = Opt(trueF3, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(trueF3, Constant("0"))))))))
                         val returnMacroCall = Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, expr), Opt(trueF3, Id(functionAfterName + "(" + "0" + ")"))))))))
-                        for (counter <- 1 until ifdefDepth - forDoWhileIfdefDepth) {
+                        for (counter <- 1 until ifdefDepth) {
                             result = afterStmt :: result
                         }
                         result ++ List(returnMacroCall)
