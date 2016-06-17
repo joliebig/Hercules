@@ -1975,12 +1975,13 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                     val featExprDiff = fExprDiff(currentContext, optIf.condition)
                     thenBranch match {
                         case One(stmt: CompoundStatement) =>
-                            //tmpThenBranch = One(insertPerfFunctCalls(CompoundStatement(stmt.innerStatements), featExprDiff))
-                            tmpThenBranch = One(CompoundStatement(stmt.innerStatements))
+                            tmpThenBranch = One(insertPerfFunctCalls(CompoundStatement(stmt.innerStatements), featExprDiff))
+                            //tmpThenBranch = One(CompoundStatement(stmt.innerStatements))
                         case _ =>
                     }
-                    //handleIfStatement(Opt(trueF, ElifStatement(cond, tmpThenBranch)), currentContext.and(optIf.feature), functionContext, toCExpr(featExprDiff))
-                    handleIfStatement(Opt(trueF, ElifStatement(cond, thenBranch)), currentContext.and(optIf.condition), functionContext, toCExpr(featExprDiff), featExprDiff)
+                    //handleIfStatement(Opt(trueF, ElifStatement(cond, tmpThenBranch)), currentContext.and(optIf.condition), functionContext, toCExpr(featExprDiff))
+                    handleIfStatement(Opt(trueF, ElifStatement(cond, thenBranch)), currentContext.and(optIf.condition), functionContext, toCExpr(featExprDiff))
+                    //List(Opt(trueF, ElifStatement(One(toCExpr(featExprDiff)), One(insertPerfFunctCalls(CompoundStatement(handleIfStatement(replaceOptAndId(Opt(trueF, IfStatement(cond, thenBranch, List(), None)), optIf.condition, functionContext), currentContext.and(optIf.condition), functionContext).asInstanceOf[List[Opt[Statement]]]), featExprDiff)))))
                 case _ =>
                     List()
             }
@@ -2012,7 +2013,8 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                 case i@IfStatement(One(expr), One(stmt), elif, els@Some(One(elseStmt))) =>
                     val features = computeFExpsForDuplication(expr, currentContext)
                     if (features.isEmpty) {
-                        List(Opt(trueF, IfStatement(One(replaceOptAndId(expr, currentContext, functionContext)), One(transformRecursive(stmt, currentContext, false, functionContext)), elif.flatMap(x => handleIfStatement(replaceOptAndId(x, currentContext, functionContext), currentContext, functionContext)).asInstanceOf[List[Opt[ElifStatement]]], transformRecursive(replaceOptAndId(els, currentContext, functionContext), currentContext, false, functionContext))))
+                        val newElif = elif.flatMap(x => handleIfStatement(replaceOptAndId(x, currentContext, functionContext), currentContext, functionContext)).asInstanceOf[List[Opt[ElifStatement]]]
+                        List(Opt(trueF, IfStatement(One(replaceOptAndId(expr, currentContext, functionContext)), One(transformRecursive(stmt, currentContext, false, functionContext)), newElif, transformRecursive(replaceOptAndId(els, currentContext, functionContext), currentContext, false, functionContext))))
                     } else {
                         features.flatMap(x => {
                             val featExprDiff = fExprDiff(currentContext, x)
@@ -2081,8 +2083,12 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             val stmt = convertStatementToCompound(statementTuple.find(z => currentContext.implies(z._1).isTautology(fm)).get._2)
                             exprFeatures match {
                                 case x :: Nil =>
-                                    //exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, x, false, functionContext), x)))))
-                                    exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(replaceAndTransform(stmt, x, false, functionContext)))))
+                                    if (addedCondition.equals(Id(""))) {
+                                        exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(replaceAndTransform(stmt, x, false, functionContext)))))
+                                    } else {
+                                        exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, x, false, functionContext), x)))))
+                                    }
+                                    //exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(replaceAndTransform(stmt, x, false, functionContext)))))
                                 case x :: xs =>
                                     // TODO: verify generation of a new condition with the newly added context from exprFeatures
                                     exprFeatures.map(y => {
@@ -2090,6 +2096,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         Opt(trueF, ElifStatement(One(NAryExpr(toCExpr(featExprDiff), List(Opt(trueF, NArySubExpr("&&", replaceOptAndId(cond, y, functionContext)))))), One(insertPerfFunctCalls(replaceAndTransform(stmt, y, false, functionContext), featExprDiff.and(addedFeature)))))
                                     })
                                 case k =>
+                                    System.err.println("exprFeatures empty for ElifStatement:  " + elifs)
                                     Nil
                             }
                         case x :: Nil =>
