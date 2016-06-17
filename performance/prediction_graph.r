@@ -13,8 +13,6 @@ result_simulator <- as.numeric(csvData[3,2])
 
 max_range <- range(0, data, result_variant, result_simulator)
 
-print(max_range)
-
 png(filename="prediction_graph.png")
 plot(data, type="o", ylim=max_range, xlab="number of training models", ylab="time in ms", main="Performance Prediction")
 abline(h=result_variant, col="blue", lty=8)
