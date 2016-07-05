@@ -40,7 +40,7 @@ typedef struct id2iperf_times {
 
 double id2iperf_getTime() {
   struct timeval2 t1;
-  gettimeofday(&t1, NULL);
+  gettimeofday((struct timeval *) &t1, NULL);
   return (t1.tv_sec) * 1000.0 + t1.tv_usec / 1000.0;
 }
 
@@ -72,21 +72,21 @@ int id2iperf_addHashMap(any_t *t1, any_t t2, char* key) {
 
 void id2iperf_time_start() {
   id2iperf_mymap = hashmap_new();
-  id2iperf_tmpvalue = malloc(sizeof(id2iperf_data_struct));
-  id2iperf_time* t = malloc(sizeof(id2iperf_time));
+  id2iperf_tmpvalue = (id2iperf_data_struct*) malloc(sizeof(id2iperf_data_struct));
+  id2iperf_time* t = (id2iperf_time*) malloc(sizeof(id2iperf_time));
   t->start = id2iperf_getTime();
   push(&id2iperf_times, t, 0);
 }
 
 void id2iperf_time_end() {
   double tmpTime = id2iperf_getTime();
-  id2iperf_time* t = pop(&id2iperf_times, 0);
+  id2iperf_time* t = (id2iperf_time*) pop(&id2iperf_times, 0);
   t->end = tmpTime;
   id2iperf_measurement_counter++;
   //assert(is_empty(id2iperf_times));
   printf("Remaining stack size: %d\n", stack_size(&id2iperf_times));
   hashmap_iterate(id2iperf_mymap, (PFany) id2iperf_addHashMap, (void**)(&id2iperf_tmpvalue));
-  id2iperf_data_struct* true_entry = malloc(sizeof(id2iperf_data_struct));
+  id2iperf_data_struct* true_entry = (id2iperf_data_struct*) malloc(sizeof(id2iperf_data_struct));
   double trueTime = t->end - t->start;
   true_entry->myTime = trueTime;
   true_entry->measurements = 1;
@@ -107,6 +107,8 @@ void id2iperf_time_end() {
   printf("-- Hercules Performance End --\n");
 }
 
+void id2iperf_time_helper(char *id2iperf_contextName, double tmpTime);
+
 void id2iperf_time_before(char *id2iperf_contextName) {
   double tmpTime = id2iperf_getTime();
   id2iperf_time_helper(id2iperf_contextName, tmpTime);
@@ -119,7 +121,7 @@ void id2iperf_time_before_counter(char *id2iperf_contextName, int currentIdentif
 }
 
 void id2iperf_time_helper(char *id2iperf_contextName, double tmpTime) {
-  id2iperf_time* t = malloc(sizeof(id2iperf_time));
+  id2iperf_time* t = (id2iperf_time*) malloc(sizeof(id2iperf_time));
   t->allowedToPop = pushUnique(&id2iperf_context, id2iperf_contextName, 1);
   id2iperf_measurement_counter++;
   t->outerStart = tmpTime;
@@ -133,7 +135,7 @@ void id2iperf_time_helper(char *id2iperf_contextName, double tmpTime) {
 
 void id2iperf_time_after(int statementNo) {
   double tmpTime = id2iperf_getTime();
-  id2iperf_time* t = pop(&id2iperf_times, 0);
+  id2iperf_time* t = (id2iperf_time*) pop(&id2iperf_times, 0);
   t->end = id2iperf_getTime();
   t->diff = t->end - t->start;
   char *tmp_context;
@@ -145,7 +147,7 @@ void id2iperf_time_after(int statementNo) {
 	  pop(&id2iperf_context, 1);
   }
   if (hashmap_get(id2iperf_mymap, tmp_context, (void**)(&id2iperf_tmpvalue)) == MAP_MISSING) {
-    id2iperf_data_struct* hashmap_entry = malloc(sizeof(id2iperf_data_struct));
+    id2iperf_data_struct* hashmap_entry = (id2iperf_data_struct*) malloc(sizeof(id2iperf_data_struct));
     hashmap_put(id2iperf_mymap, tmp_context, hashmap_entry);
     hashmap_entry->myTime = t->diff;
     hashmap_entry->measurements = 1;
