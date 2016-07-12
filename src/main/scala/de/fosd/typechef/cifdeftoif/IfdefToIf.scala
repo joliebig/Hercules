@@ -187,7 +187,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
       * Checks given AST for type errors.
      */
     def checkAstSilent(ast: TranslationUnit): Boolean = {
-        getTypeSystem(ast).checkASTSilent().isEmpty
+        getTypeSystem(ast).checkASTSilent
     }
 
     /**
