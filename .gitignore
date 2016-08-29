@@ -52,3 +52,5 @@ cRefactor.sh
 ifdeftoif_progress.txt
 renamings_Functions.txt
 renamings_StructsAndVars.txt
+performance/PerfTimes/.idea
+performance/PerfTimes/out
