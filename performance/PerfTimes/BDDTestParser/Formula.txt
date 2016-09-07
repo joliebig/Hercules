@@ -1,0 +1,1 @@
+(A or B) and (A or R) and (X and R)

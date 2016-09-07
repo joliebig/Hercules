@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE project> <!-- generic AcceptAllDTD to make the Eclipse Warning go away -->
+<project name="FeatureModelParserGeneration" default="generate" basedir="./">
+  <property name="parserDir" location="src/expressionParser" />
+  <property name="src"       location="src/expressionParser" />
+  <property name="lib"       location="lib" />
+  <property environment="env" />
+
+  <taskdef name="jflex"
+           classname="JFlex.anttask.JFlexTask"
+  	       classpath="${lib}/JFlex.jar"
+  />
+  <taskdef name="cup"
+           classname="java_cup.anttask.CUPTask"
+           classpath="${lib}/java-cup-11a.jar"
+  />
+
+  <target name="echos">
+  	<echo>${lib}</echo>
+  	<echo>${src}</echo>
+  	<echo>${parserDir}</echo>
+  	<echo>${basedir}</echo>
+  </target>
+
+  <target name="generate">
+	<jflex file="${parserDir}/Scanner.jflex" destdir="${src}" skel="src/expressionParser/skeleton.nested"/>
+  	
+    <cup srcfile="${parserDir}/Parser.cup"
+         destdir="${src}"
+         interface="true"
+         parser="FeatureModelParser"
+    	 symbols="FeatureModelSym"
+    	 nopositions="true"
+    />
+	
+    <!-- remove generation date to not interfere with SVN -->
+    <replaceregexp match="(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \w\w\w \d\d \d\d:\d\d:\d\d \w+ \d\d\d\d" replace="[date omitted]" flags="g">
+	<fileset dir="${parserDir}">
+	    <include name="FeatureModelParser.java"/>
+	    <include name="FeatureModelSym.java"/>
+	</fileset>
+    </replaceregexp>
+    <replaceregexp file="${parserDir}/FeatureModelScanner.java" match="\d\d\.\d\d.\d\d \d\d:\d\d" replace="[date omitted]" flags="g" />
+    <replaceregexp file="${parserDir}/FeatureModelScanner.java" match="(.tt>).*/(src/configurationGeneration/Scanner.jflex./tt>)" replace="\1\2" />
+
+    <!-- places the suppressWarnings-tag in front of the outer class -->
+    <replace file="${parserDir}/FeatureModelParser.java" token="public class " value="@SuppressWarnings(value = { &quot;all&quot; }) public  class "/>
+    <!-- places the suppressWarnings-tag in front of the inner class -->
+    <replace file="${parserDir}/FeatureModelParser.java" token="class CUP$" value="@SuppressWarnings(value = { &quot;all&quot; }) class  CUP$"/>
+  	<!-- SVN had "inconsistent line endings"-Problems. Let ANT fix it, uses the system default line ending -->
+  	<fixcrlf file="${parserDir}/FeatureModelParser.java" />
+  </target>
+</project>

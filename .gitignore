@@ -1,6 +1,5 @@
 .manager
 .settings
-bin
 *.class
 *.orig
 *~

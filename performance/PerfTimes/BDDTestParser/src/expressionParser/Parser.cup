@@ -1,0 +1,55 @@
+package expressionParser;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+
+import net.sf.javabdd.BDD;
+import main.BddManager;
+
+parser code {:
+
+  @Override
+  public void report_error(String message, Object info) {
+    String errorString = message;
+    if (info != null) {
+      errorString += " near " + info;
+    }
+  }
+:};
+
+
+
+terminal IDENTIFIER, TRUE, FALSE, AND, OR, NOT, OBRACKETS, CBRACKETS, COMMA, ONE_OF, NONE_OF, SOME_OF, ONE_OF_OR_NONE, DEFINED;
+non terminal BDD initial ;  
+non terminal BDD Expression ;
+non terminal BDD Identifier ;
+non terminal LinkedList<BDD> ExpressionList ;
+
+precedence left OR;
+precedence left AND;
+precedence right NOT;
+
+initial ::= Expression:e {: RESULT = e; :}
+          | /* empty */ {: RESULT = BddManager.trueFormula; :}
+          ;
+
+Expression ::= Expression:e1 AND Expression:e2 {: RESULT = e1.and(e2); :}
+			 | Expression:e1 OR Expression:e2 {: RESULT = e1.or(e2); :}
+			 | NOT Expression:e1 {: RESULT = e1.not(); :}
+			 | ONE_OF OBRACKETS ExpressionList:lst1 CBRACKETS {: RESULT = main.BDDUtils.oneOf(lst1.toArray(new BDD[]{})); :}
+			 | NONE_OF OBRACKETS ExpressionList:lst1 CBRACKETS {: RESULT = main.BDDUtils.noneOf(lst1.toArray(new BDD[]{})); :}
+			 | SOME_OF OBRACKETS ExpressionList:lst1 CBRACKETS {: RESULT = main.BDDUtils.someOf(lst1.toArray(new BDD[]{})); :}
+			 | ONE_OF_OR_NONE OBRACKETS ExpressionList:lst1 CBRACKETS {: RESULT = main.BDDUtils.oneOfOrNone(lst1.toArray(new BDD[]{})); :}
+			 | DEFINED OBRACKETS Expression:e1 CBRACKETS {: RESULT = e1; :}
+			 | OBRACKETS Expression:e1 CBRACKETS {: RESULT = e1; :}
+			 | TRUE {: RESULT = BddManager.trueFormula; :}
+			 | FALSE {: RESULT = BddManager.falseFormula; :}
+			 | IDENTIFIER:i {: 
+			 		String id = i.toString();
+			 		BDD var = BddManager.getVariableRegion(id);
+			 		//RESULT = Choco.eq(1, var); 
+			 		RESULT = var;
+			 :}
+			 ;
+ExpressionList ::= Expression:e1 COMMA ExpressionList:lst1 {: lst1.addFirst(e1); RESULT = lst1; :}
+				 | Expression:e1 {: LinkedList<BDD> lst = new LinkedList<BDD>(); lst.addFirst(e1); RESULT = lst; :};
