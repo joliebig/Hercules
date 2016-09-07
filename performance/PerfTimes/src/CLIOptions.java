@@ -51,7 +51,7 @@ public class CLIOptions {
         options.addOption("f", "folder", true, "Folder location of result files");
         options.addOption("im", "inputmode", true, "Set input mode: [featurewise/pairwise/codecoverage/randomsampling]");
         options.addOption("pm", "predictmode", true, "Set predict mode: " + validModesToString());
-
+        options.addOption("rc", "randomconfig", true, "Generate random config from random.csv");
     }
 
     public void parse() {
@@ -65,7 +65,17 @@ public class CLIOptions {
                 help();
             }
 
-            //if (cmd.hasOption("cs") && cmd.getOptionValue("cs").equals("sqlite")) {
+            if (cmd.getOptions().length == 0) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+                    predict.add(reader, "");
+                    predict.printFixedValues();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+
+            if (cmd.hasOption("cs") && cmd.getOptionValue("cs").equals("sqlite")) {
                 if (cmd.hasOption("f")) {
                     File location = new File(cmd.getOptionValue("f"));
                     if (location.isDirectory()) {
@@ -105,15 +115,9 @@ public class CLIOptions {
                 } else {
                     log.log(Level.SEVERE, "Use option '-f <location>'", cmd.getOptionValue("f"));
                 }
-            //}
-
-            if (cmd.getOptions().length == 0) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-                    predict.add(reader, "");
-                    predict.printFixedValues();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            }
+            if (cmd.hasOption("rc")) {
+                GenerateRandomConfig.generateConfigs(cmd.getOptionValue("rc"));
             }
 
         } catch (ParseException e) {
