@@ -139,7 +139,8 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
 
                     stopWatch.start("typechecking")
                     println("type checking")
-                    val typeCheckStatus = ts.checkASTSilent()
+                    val errors = ts.checkASTErrorsSilent
+                    val typeCheckStatus = errors.isEmpty
                     ts.errors.map(errorXML.renderTypeError)
                     if (opt.decluse) {
                         if (typeCheckStatus) {
@@ -225,7 +226,7 @@ object IfdeftoifFrontend extends App with Logging with EnforceTreeHelper {
                                 }
                             }
                         } else {
-                            println("#ifdef to if transformation unsuccessful because of type errors in source file")
+                            println("#ifdef to if transformation unsuccessful because of type errors in source file:\n" + errors)
                         }
                     }
                     ts.errors.map(errorXML.renderTypeError(_))
