@@ -3,6 +3,7 @@
  */
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
@@ -14,7 +15,7 @@ public class CLIOptions {
     private String[] args = null;
     private Options options = new Options();
     private int SQLITE_PREDICTION_SCENARIO;
-    private final List<String> VALID_MODES = Arrays.asList("featurewise", "pairwise", "codecoverage", "randomsampling", "allyes");
+    private final List<String> VALID_MODES = Arrays.asList("featurewise", "pairwise", "codecoverage", "random", "allyes");
     private String INPUT_MODE;
     private String PREDICT_MODE;
     //private final String TYPECHEF_SQLITE_IFDEFTOIF_DIR = new File(System.getProperty("user.dir")).getParentFile().getParent()
@@ -49,9 +50,10 @@ public class CLIOptions {
         options.addOption("h", "help", false, "display help");
         options.addOption("cs", "case study", true, "Set case study: [sqlite]");
         options.addOption("f", "folder", true, "Folder location of result files");
-        options.addOption("im", "inputmode", true, "Set input mode: [featurewise/pairwise/codecoverage/randomsampling]");
+        options.addOption("im", "inputmode", true, "Set input mode: "+ validModesToString());
         options.addOption("pm", "predictmode", true, "Set predict mode: " + validModesToString());
         options.addOption("rc", "randomconfig", true, "Generate random config from random.csv");
+        options.addOption("fo", "fixoutput", true, "Fixes hashmap values from executing a performance binary: [executed output file location]");
     }
 
     public void parse() {
@@ -67,8 +69,12 @@ public class CLIOptions {
 
             if (cmd.getOptions().length == 0) {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-                    predict.add(reader, "");
-                    predict.printFixedValues();
+                    if (reader.ready()) {
+                        predict.add(reader, "");
+                        predict.printFixedValues();
+                    } else {
+                        help();
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -86,27 +92,24 @@ public class CLIOptions {
                                     if (isValidMode(cmd.getOptionValue("pm"))) {
                                         this.INPUT_MODE = cmd.getOptionValue("im");
                                         this.PREDICT_MODE = cmd.getOptionValue("pm");
-                                        switch (this.INPUT_MODE) {
-                                            case "featurewise":
-                                                try {
-                                                    predict.addFeatureWise(location);
-                                                } catch (Exception e) {
-                                                    e.printStackTrace();
-                                                }
+                                        try {
+                                            predict.addPrediction(location, this.INPUT_MODE);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
                                         }
                                         predict.predict(this.PREDICT_MODE, getSQLiteDir(), location);
 
                                     } else {
-                                        log.log(Level.SEVERE, "invalid mode for option '-pm [featurewise/pairwise/codecoverage/randomsampling]'");
+                                        log.log(Level.SEVERE, "invalid mode for option '-pm " + validModesToString() + "'");
                                     }
                                 } else {
-                                    log.log(Level.SEVERE, "missing prediction mode '-pm [featurewise/pairwise/codecoverage/randomsampling]'");
+                                    log.log(Level.SEVERE, "missing prediction mode '-pm " + validModesToString() + "'");
                                 }
                             } else {
-                                log.log(Level.SEVERE, "invalid mode for option '-im [featurewise/pairwise/codecoverage/randomsampling]'");
+                                log.log(Level.SEVERE, "invalid mode for option '-im " + validModesToString() + "'");
                             }
                         } else {
-                            log.log(Level.SEVERE, "missing input mode '-im [featurewise/pairwise/codecoverage/randomsampling]'");
+                            log.log(Level.SEVERE, "missing input mode '-im " + validModesToString() + "'");
                         }
 
                     } else {
@@ -118,6 +121,14 @@ public class CLIOptions {
             }
             if (cmd.hasOption("rc")) {
                 GenerateRandomConfig.generateConfigs(cmd.getOptionValue("rc"));
+            }
+            if (cmd.hasOption("fo")) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(cmd.getOptionValue("fo")))) {
+                    predict.add(reader, "");
+                    predict.printFixedValues();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
 
         } catch (ParseException e) {

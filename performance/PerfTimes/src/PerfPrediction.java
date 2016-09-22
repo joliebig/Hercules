@@ -15,7 +15,6 @@ public class PerfPrediction {
         
     }
 
-    private final static String HELP_MESSAGE = "Usage: java -jar jar $PERFORMANCE_RESULTS ($CONFIGURATION) ($FEATURE_MODEL)";
     private final static String BASE_NAME = "BASE";
     private final static String HERCULES_START_MESSAGE = "-- Hercules Performance --";
     private final static String HERCULES_END_MESSAGE = "-- Hercules Performance End --";
@@ -29,6 +28,8 @@ public class PerfPrediction {
     private static Boolean PRINT_HASHMAP = false;
     private final static String PERF_FILE_PREFIX_FEATUREWISE = "perf_ft_";
     private final static String PERF_FILE_PREFIX_PAIRWISE = "perf_pr_";
+    private final static String PERF_FILE_PREFIX_CODECOVERAGE = "perf_cc_";
+    private final static String PERF_FILE_PREFIX_RANDOM = "perf_rnd_";
     private final static String PERF_FILE_NAME_ALLYES = "perf_ay.txt";
     private final static String CONFIG_PREFIX_PAIRWISE = "Prod";
     private final static String CONFIG_PREFIX_FEATUREWISE = "id2i_include_";
@@ -342,10 +343,6 @@ public class PerfPrediction {
         }
     }
 
-    static private Boolean isPerformanceFile(String perfFileName) {
-        return perfFileName.startsWith(PERF_FILE_PREFIX_FEATUREWISE) || perfFileName.startsWith(PERF_FILE_PREFIX_PAIRWISE);
-    }
-
     static private BDD getBDDfromConfigFile(String location) {
         try {
             byte[] encoded = Files.readAllBytes(Paths.get(location));
@@ -397,7 +394,7 @@ public class PerfPrediction {
                 if (new File(structLocation).isDirectory()) {
                     BDD configuration = getBDDfromConfigFile(structLocation + "/allyes/allyes_include.h");
                     predict(SOURCE_MODEL, configuration);
-                    File resultFile = new File(getAllyesResult(location));
+                    File resultFile = new File(getResultFile(location, new File(NO_LOCATION), predictMode));
                     if (resultFile.exists()) {
                         System.out.println(getResultTime(resultFile) + "\n");
                     }
@@ -405,13 +402,16 @@ public class PerfPrediction {
                     // TODO
                 }
                 break;
+            case "codecoverage":
+            case "random":
+            case "featurewise":
             case "pairwise":
                 if (new File(structLocation).isDirectory()) {
-                    for (File child : new File(structLocation + "/pairwise/generated").listFiles()) {
-                        if (isPairWiseConfig(child)) {
+                    for (File child : getConfigurationFiles(structLocation, predictMode)) {
+                        if (isConfigFile(child, predictMode)) {
                             BDD configuration = getBDDfromConfigFile(child.toString());
                             predict(SOURCE_MODEL, configuration);
-                            File resultFile = new File(getPairWiseResult(location, child));
+                            File resultFile = new File(getResultFile(location, child, predictMode));
                             if (resultFile.exists()) {
                                 System.out.println(getResultTime(resultFile) + "\n");
                             }
@@ -419,21 +419,8 @@ public class PerfPrediction {
                     }
                 }
                 break;
-            case "featurewise":
-                if (new File(structLocation).isDirectory()) {
-                    for (File child : new File(structLocation + "/featurewise/generated").listFiles()) {
-                        if (isFeatureWiseConfig(child)) {
-                            BDD configuration = getBDDfromConfigFile(child.toString());
-                            predict(SOURCE_MODEL, configuration);
-                            File resultFile = new File(getFeatureWiseResult(location, child));
-                            if (resultFile.exists()) {
-                                System.out.println(getResultTime(resultFile) + "\n");
-                            }
-                        }
-                    }
-                }
+            default:
                 break;
-
         }
     }
 
@@ -639,35 +626,101 @@ public class PerfPrediction {
         System.out.println(sb.toString());
     }
 
-    static public Boolean isFeatureWiseFile(File file) {
-        return file.getName().startsWith(PERF_FILE_PREFIX_FEATUREWISE);
+    static public Boolean isCorrectFile(File file, String predictionMode) {
+        Boolean result;
+        switch (predictionMode) {
+            case "random":
+                result =  file.getName().startsWith(PERF_FILE_PREFIX_RANDOM);
+                break;
+            case "featurewise":
+                result =  file.getName().startsWith(PERF_FILE_PREFIX_FEATUREWISE);
+                break;
+            case "pairwise":
+                result =  file.getName().startsWith(PERF_FILE_PREFIX_PAIRWISE);
+                break;
+            case "allyes":
+                result =  file.getName().startsWith(PERF_FILE_NAME_ALLYES);
+                break;
+            case "codecoverage":
+                result =  file.getName().startsWith(PERF_FILE_PREFIX_CODECOVERAGE);
+                break;
+            default:
+                result =  false;
+        }
+        return result;
     }
 
-    static public Boolean isPairWiseConfig(File file) {
-        return file.getName().startsWith(CONFIG_PREFIX_PAIRWISE);
+    static public File[] getConfigurationFiles(String structLocation, String predictMode) {
+        File[] result;
+        switch (predictMode) {
+            case "pairwise":
+                result = new File(structLocation + "/pairwise/generated").listFiles();
+                break;
+            case "featurewise":
+                result = new File(structLocation + "/featurewise/generated").listFiles();
+                break;
+            case "random":
+                result = new File(structLocation + "/random/generated").listFiles();
+                break;
+            case "codecoverage":
+                result = new File(structLocation + "/codecoverage/generated").listFiles();
+                break;
+            case "allyes":
+                result = new File[]{new File(structLocation + "/allyes/allyes_include.h")};
+                break;
+            default:
+                result = new File[0];
+                break;
+        }
+        return result;
     }
 
-    static public String getFeatureWiseResult(File location, File configFile) {
-        String id = configFile.getName().replaceAll("\\D+","");
-        return location.getAbsolutePath() + File.separator + PERF_FILE_PREFIX_FEATUREWISE + id + ".txt";
+    static public String getResultFile(File location, File configFile, String predictMode) {
+        String id;
+        String resultFile;
+        switch (predictMode) {
+            case "featurewise":
+                id = configFile.getName().replaceAll(CONFIG_PREFIX_FEATUREWISE, "").replaceAll("\\D+","");
+                resultFile = location.getAbsolutePath() + File.separator + PERF_FILE_PREFIX_FEATUREWISE + id + ".txt";
+            case "pairwise":
+                id = configFile.getName().replaceAll(CONFIG_PREFIX_PAIRWISE, "").replaceAll("\\D+","");
+                resultFile = location.getAbsolutePath() + File.separator + PERF_FILE_PREFIX_PAIRWISE + id + ".txt";
+            case "random":
+                id = configFile.getName().replaceAll(CONFIG_PREFIX_FEATUREWISE, "").replaceAll("\\D+","");
+                resultFile = location.getAbsolutePath() + File.separator + PERF_FILE_PREFIX_RANDOM + id + ".txt";
+            case "allyes":
+                return location.getAbsolutePath() + File.separator + PERF_FILE_NAME_ALLYES;
+            case "codecoverage":
+                id = configFile.getName().replaceAll(CONFIG_PREFIX_FEATUREWISE, "").replaceAll("\\D+","");
+                resultFile = location.getAbsolutePath() + File.separator + PERF_FILE_PREFIX_CODECOVERAGE + id + ".txt";
+            default:
+                resultFile = "";
+                break;
+        }
+        return resultFile;
     }
 
-    static public String getPairWiseResult(File location, File configFile) {
-        String id = configFile.getName().replaceAll("\\D+","");
-        return location.getAbsolutePath() + File.separator + PERF_FILE_PREFIX_PAIRWISE + id + ".txt";
+    static public Boolean isConfigFile(File file, String predictMode) {
+        Boolean result;
+        switch (predictMode) {
+            case "codecoverage":
+            case "random":
+            case "featurewise":
+                result = file.getName().startsWith(CONFIG_PREFIX_FEATUREWISE);
+                break;
+            case "pairwise":
+                result = file.getName().startsWith(CONFIG_PREFIX_PAIRWISE);
+                break;
+            default:
+                result = false;
+                break;
+        }
+        return result;
     }
 
-    static public String getAllyesResult(File location) {
-        return location.getAbsolutePath() + File.separator + PERF_FILE_NAME_ALLYES;
-    }
-
-    static public Boolean isFeatureWiseConfig(File file) {
-        return file.getName().startsWith(CONFIG_PREFIX_FEATUREWISE);
-    }
-
-    static public void addFeatureWise(File location) throws Exception {
+    static public void addPrediction(File location, String predictionMode) throws Exception {
         for (File child : location.listFiles()) {
-            if (isFeatureWiseFile(child)) {
+            if (isCorrectFile(child, predictionMode)) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(child))) {
                     add(reader, location.toString());
                 } catch (Exception e) {
