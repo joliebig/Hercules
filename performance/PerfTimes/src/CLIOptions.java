@@ -54,6 +54,8 @@ public class CLIOptions {
         options.addOption("pm", "predictmode", true, "Set predict mode: " + validModesToString());
         options.addOption("rc", "randomconfig", true, "Generate random config from random.csv");
         options.addOption("fo", "fixoutput", true, "Fixes hashmap values from executing a performance binary: [executed output file location]");
+        options.addOption("acc", "accumulate", true, "Accumulates data from multiple performance runs in given directory");
+        options.addOption("md", "median", false, "Changes accumulation mode to use median instead of mean");
     }
 
     public void parse() {
@@ -129,6 +131,12 @@ public class CLIOptions {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            }
+            if (cmd.hasOption("md")) {
+                Accumulator.enableMedian();
+            }
+            if (cmd.hasOption("acc")) {
+                Accumulator.start(new File(cmd.getOptionValue("acc")));
             }
 
         } catch (ParseException e) {
