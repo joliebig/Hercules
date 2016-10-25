@@ -16,7 +16,8 @@ public class Accumulator {
     private final static String OVERHEAD = "Overhead: ";
     private final static String HASHMAP_SIZE = "Hashmap size: ";
     private final static String SPLITTER = " -> ";
-    private final static String RESULTDIR = "total_results";
+    private static String RESULTDIR_MEDIAN = "median_results";
+    private static String RESULTDIR_MEAN = "mean_results";
     private static Boolean useMedian = false;
 
     private static void addToHashMap(HashMap<String, ArrayList<Double>> hashmap, String key, double value) {
@@ -121,7 +122,13 @@ public class Accumulator {
         }
         sb.append(TOTAL_TIME + getComputedValue(resultValues.get(removeLastChar(TOTAL_TIME))) + " ms (overhead: " + getComputedValue(resultValues.get(removeLastChar(OVERHEAD))) + ")" + "\n");
         sb.append(suffix);
-        String exportPath = files[0].getAbsolutePath().replaceFirst("Run\\_[0-9]+", RESULTDIR);
+        String exportPath;
+        if (useMedian) {
+            exportPath = files[0].getAbsolutePath().replaceFirst("Run\\_[0-9]+", RESULTDIR_MEDIAN);
+        } else {
+
+            exportPath = files[0].getAbsolutePath().replaceFirst("Run\\_[0-9]+", RESULTDIR_MEAN);
+        }
         new File(exportPath).getParentFile().mkdirs();
         PrintWriter writer = new PrintWriter(exportPath);
         writer.print(sb.toString());
@@ -157,6 +164,7 @@ public class Accumulator {
                 }
             });
             int currentCount = Integer.MIN_VALUE;
+
             for (File dir : folders) {
                 if (currentCount == Integer.MIN_VALUE) {
                     currentCount = getFileCount(dir);
