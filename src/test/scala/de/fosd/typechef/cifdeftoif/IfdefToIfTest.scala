@@ -1,9 +1,11 @@
 package de.fosd.typechef.cifdeftoif
 
 import java.io._
+import java.util
+import java.util.IdentityHashMap
 
 import de.fosd.typechef.conditional.{Choice, One, Opt}
-import de.fosd.typechef.featureexpr.{FeatureExprFactory, FeatureExprParser, FeatureModel, SingleFeatureExpr}
+import de.fosd.typechef.featureexpr._
 import de.fosd.typechef.lexer.FeatureExprLib
 import de.fosd.typechef.parser.c._
 import de.fosd.typechef.typesystem._
@@ -31,6 +33,63 @@ class IfdefToIfTest extends ConditionalNavigation with ASTNavigation with CDeclU
     val ifdeftoifTestPath = new File(".").getCanonicalPath() ++ "/src/test/resources/ifdeftoif_testfiles/"
     val True = FeatureExprFactory.True
     var filesTransformed = 0
+
+    @Test
+    def eq_test() ={
+        val s = parseTranslationUnit(
+            """
+                int doStuff() {
+                #ifdef FEATURE1
+                    int i = 0;
+
+                #ifdef FEATURE2
+                    i = 2;
+                #endif
+                return i;
+                #else
+                return 1;
+                #endif
+            }
+            int main (void)
+            {
+                int i = doStuff();
+                #ifdef FEATURE3
+                #ifdef FEATURE1
+                i = 33333333;
+                #endif
+                #endif
+                return 0;
+            }
+            """.stripMargin)
+        val featureList= filterAllFeatureExpr(s)
+        //println(featureList)
+        val f1 = featureList(3)
+        val f2 = featureList(5)
+        val f3 = featureList(7)
+
+        val ihash: util.IdentityHashMap[FeatureExpr, Int] = new util.IdentityHashMap[FeatureExpr, Int]()
+
+        ihash.put(f1, 3)
+        assert(!ihash.containsKey(f2))
+        ihash.put(f2, 0)
+        ihash.put(f3, 10)
+        assert(ihash.containsKey(f2))
+        assert(ihash.get(f1) == 3)
+        assert(ihash.get(f2) == 0)
+        assert(ihash.get(f3) == 10)
+        val t1 = Id("a")
+        val t2 = Id("b")
+        val ff1 = FeatureExprFactory.createDefinedExternal("A")
+        val ff2 = FeatureExprFactory.createDefinedExternal("A")
+        assert(ff1.hashCode() == ff2.hashCode())
+        val hash2: IdentityHashMap[FeatureExpr, Int] = new IdentityHashMap[FeatureExpr, Int]()
+        hash2.put(ff1, 0)
+        assert(!hash2.containsKey(ff2))
+        assert(hash2.get(ff2) == null)
+        hash2.put(ff2, 10)
+        assert(hash2.get(ff1) == 0)
+        assert(hash2.get(ff2) == 10)
+    }
 
     def appendToFile(fileName: String, textData: String) = {
         using(new FileWriter(fileName, true)) {
