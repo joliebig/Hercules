@@ -287,14 +287,16 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
                         List(k)
                 })
         })
-        if (last.entry.isInstanceOf[ReturnStatement]) {
-            result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
-        } else {
-            //val newCompound = r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement]
-            //val newCompound = alterStatementHelper(cmpstmt)
-            val newCompound = cmpstmt
-            result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ newCompound.innerStatements ++ List(Opt(trueF3, afterStmt)))
+        last match {
+            case Opt(ft, ReturnStatement(_)) =>
+                result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
+            case Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), _))) =>
+                result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
+            case k =>
+                val newCompound = cmpstmt
+                result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ newCompound.innerStatements ++ List(Opt(trueF3, afterStmt)))
         }
+        print("")
         return result
         /*if (last.entry.isInstanceOf[ReturnStatement]) {
             val currentReturn = last.entry.asInstanceOf[ReturnStatement]
@@ -319,21 +321,36 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
             // Don't insert anything
             return cmpstmt
         }
+        var last = cmpstmt.innerStatements.last
+        val r = manytd(rule[Statement] {
+            case CompoundStatement(innerStmts) =>
+                CompoundStatement(innerStmts.flatMap {
+                    case Opt(ft, ReturnStatement(None)) =>
+                        List(Opt(ft, ExprStatement(PostfixExpr(Id(functionEndName), FunctionCall(ExprList(List()))))), Opt(ft, ReturnStatement(None)))
+                    case Opt(ft, ReturnStatement(Some(expr))) =>
+                        List(Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, expr), Opt(trueF3, Id(functionEndName + "()")))))))))
+                    case k =>
+                        List(k)
+                })
+        })
+        val newCmpStmt = r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement]
+        last = newCmpStmt.innerStatements.last
         val startStmt = ExprStatement(PostfixExpr(Id(functionStartName), FunctionCall(ExprList(List()))))
-        val last = cmpstmt.innerStatements.last
-        if (last.entry.isInstanceOf[ReturnStatement]) {
-            val currentReturn = last.entry.asInstanceOf[ReturnStatement]
-            if (currentReturn.expr.isDefined) {
-                val fctCall = ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, last.entry.asInstanceOf[ReturnStatement].expr.get), Opt(trueF3, Id(functionEndName + "()")))))))
-                return CompoundStatement(List(Opt(trueF3, startStmt)) ++ cmpstmt.innerStatements.take(cmpstmt.innerStatements.size - 1) ++ List(Opt(trueF3, fctCall)))
-            } else {
+        var result: CompoundStatement = CompoundStatement(List())
+        last match {
+            case Opt(ft, ReturnStatement(None)) =>
                 val endStmt = ExprStatement(PostfixExpr(Id(functionEndName), FunctionCall(ExprList(List()))))
-                return CompoundStatement(List(Opt(trueF3, startStmt)) ++ cmpstmt.innerStatements.take(cmpstmt.innerStatements.size - 1) ++ List(Opt(trueF3, endStmt)) ++ List(last))
-            }
-        } else {
-            val endStmt = ExprStatement(PostfixExpr(Id(functionEndName), FunctionCall(ExprList(List()))))
-            return CompoundStatement(List(Opt(trueF3, startStmt)) ++ cmpstmt.innerStatements ++ List(Opt(trueF3, endStmt)))
+                result = CompoundStatement(List(Opt(trueF3, startStmt)) ++ newCmpStmt.innerStatements.take(newCmpStmt.innerStatements.size - 1) ++ List(Opt(trueF3, endStmt)) ++ List(last))
+            case Opt(ft, ReturnStatement(Some(_))) =>
+                val fctCall = ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, last.entry.asInstanceOf[ReturnStatement].expr.get), Opt(trueF3, Id(functionEndName + "()")))))))
+                result = CompoundStatement(List(Opt(trueF3, startStmt)) ++ newCmpStmt.innerStatements.take(newCmpStmt.innerStatements.size - 1) ++ List(Opt(trueF3, fctCall)))
+            case Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), _))) =>
+                result = CompoundStatement(List(Opt(trueF3, startStmt)) ++ newCmpStmt.innerStatements)
+            case k =>
+                val endStmt = ExprStatement(PostfixExpr(Id(functionEndName), FunctionCall(ExprList(List()))))
+                result = CompoundStatement(List(Opt(trueF3, startStmt)) ++ newCmpStmt.innerStatements ++ List(Opt(trueF3, endStmt)))
         }
+        return result
     }
 
     override def combinePerformancePair(firstStmts: CompoundStatement, secondStmts: CompoundStatement): CompoundStatement = {
