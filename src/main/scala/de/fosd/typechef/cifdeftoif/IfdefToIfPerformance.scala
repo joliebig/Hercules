@@ -194,8 +194,8 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     override def insertPerformanceCounter(cmpStmt: CompoundStatement): CompoundStatement = {
         if (insertPerformanceCounter) {
             cmpStmt.innerStatements.head match {
-                case Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(opt1@Opt(_, StringLit(_)))))))) =>
-                    val result = CompoundStatement(Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(List(opt1, Opt(trueF3, Constant(performanceCounter.toString)))))))) :: cmpStmt.innerStatements.tail)
+                case Opt(ft, ExprStatement(PostfixExpr(Id(name), FunctionCall(ExprList(List(opt1@Opt(_, StringLit(_)))))))) if name.equals(functionBeforeName) || name.equals(functionBeforeCounterName) =>
+                    val result = CompoundStatement(Opt(ft, ExprStatement(PostfixExpr(Id(name), FunctionCall(ExprList(List(opt1, Opt(trueF3, Constant(performanceCounter.toString)))))))) :: cmpStmt.innerStatements.tail)
                     performanceCmpStmtContextMap.put(result, getContext(cmpStmt))
                     performanceCounter += 1
                     return result
@@ -210,7 +210,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     private def getContext(cmpStmt: CompoundStatement, throwErrors: Boolean = true): String = {
         if (!cmpStmt.innerStatements.isEmpty) {
             cmpStmt.innerStatements.head match {
-                case Opt(ft, ExprStatement(PostfixExpr(Id(functionBeforeName), FunctionCall(ExprList(entries))))) =>
+                case Opt(ft, ExprStatement(PostfixExpr(Id(name), FunctionCall(ExprList(entries))))) if name.equals(functionBeforeName) || name.equals(functionBeforeCounterName) =>
                     entries match {
                         case Opt(_, StringLit(List(Opt(_, stringLiteral)))) :: xs =>
                             return stringLiteral.replaceFirst("\"(.*?)\"", "$1")
@@ -290,7 +290,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
         last match {
             case Opt(ft, ReturnStatement(_)) =>
                 result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
-            case Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), _))) =>
+            case Opt(ft, ExprStatement(PostfixExpr(Id(name), _))) if name.equals(returnMacroName) =>
                 result = CompoundStatement(List(Opt(trueF3, beforeStmt)) ++ r(cmpstmt).getOrElse(cmpstmt).asInstanceOf[CompoundStatement].innerStatements)
             case k =>
                 val newCompound = cmpstmt
@@ -344,7 +344,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
             case Opt(ft, ReturnStatement(Some(_))) =>
                 val fctCall = ExprStatement(PostfixExpr(Id(returnMacroName), FunctionCall(ExprList(List(Opt(trueF3, last.entry.asInstanceOf[ReturnStatement].expr.get), Opt(trueF3, Id(functionEndName + "()")))))))
                 result = CompoundStatement(List(Opt(trueF3, startStmt)) ++ newCmpStmt.innerStatements.take(newCmpStmt.innerStatements.size - 1) ++ List(Opt(trueF3, fctCall)))
-            case Opt(ft, ExprStatement(PostfixExpr(Id(returnMacroName), _))) =>
+            case Opt(ft, ExprStatement(PostfixExpr(Id(name), _))) if name.equals(returnMacroName) =>
                 result = CompoundStatement(List(Opt(trueF3, startStmt)) ++ newCmpStmt.innerStatements)
             case k =>
                 val endStmt = ExprStatement(PostfixExpr(Id(functionEndName), FunctionCall(ExprList(List()))))
@@ -362,7 +362,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     override def removePerformanceBeforeFunction(stmts: List[Opt[Statement]]): List[Opt[Statement]] = {
         val first = stmts.head
         first match {
-            case Opt(trueF3, ExprStatement(PostfixExpr(Id(functionBeforeName), fc: FunctionCall))) =>
+            case Opt(trueF3, ExprStatement(PostfixExpr(Id(name), fc: FunctionCall))) if name.equals(functionBeforeName) || name.equals(functionBeforeCounterName) =>
                 return stmts.drop(1)
             case _ =>
                 return stmts
@@ -373,7 +373,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     override def removePerformanceAfterFunction(stmts: List[Opt[Statement]]): (List[Opt[Statement]], Int) = {
         val last = stmts.last
         last match {
-            case Opt(_, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(_, Constant(numberOfStatements)))))))) =>
+            case Opt(_, ExprStatement(PostfixExpr(Id(name), FunctionCall(ExprList(List(Opt(_, Constant(numberOfStatements)))))))) if name.equals(functionAfterName) =>
                 return (stmts.take(stmts.size - 1), numberOfStatements.toInt)
             case _ =>
                 return (stmts, 0)
@@ -384,7 +384,7 @@ trait IfdefToIfPerformance extends IfdefToIfPerformanceInterface with IOUtilitie
     private def updatePerformanceAfterFunction(stmts: List[Opt[Statement]], numberOfStmtsToAdd: Int): List[Opt[Statement]] = {
         val last = stmts.last
         last match {
-            case Opt(f1, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(f2, Constant(numberOfStatements)))))))) =>
+            case Opt(f1, ExprStatement(PostfixExpr(Id(name), FunctionCall(ExprList(List(Opt(f2, Constant(numberOfStatements)))))))) if name.equals(functionAfterName) =>
                 return stmts.updated(stmts.size - 1, Opt(f1, ExprStatement(PostfixExpr(Id(functionAfterName), FunctionCall(ExprList(List(Opt(f2, Constant((numberOfStatements.toInt + numberOfStmtsToAdd).toString())))))))))
             case _ =>
                 return stmts
