@@ -56,6 +56,8 @@ public class CLIOptions {
         options.addOption("fo", "fixoutput", true, "Fixes hashmap values from executing a performance binary: [executed output file location]");
         options.addOption("acc", "accumulate", true, "Accumulates data from multiple performance runs in given directory");
         options.addOption("md", "median", false, "Changes accumulation mode to use median instead of mean");
+        options.addOption("csv", "csv", false, "Export results in a csv table");
+        options.addOption("fd", "feature distribution", false, "Creates a model about the execution time distributed over different degrees of feature interactions");
     }
 
     public void parse() {
@@ -83,17 +85,24 @@ public class CLIOptions {
                 return;
             }
 
+            if (cmd.hasOption("csv")) {
+                predict.exportAsCsv(true);
+            }
+
             if (cmd.hasOption("cs") && cmd.getOptionValue("cs").equals("sqlite")) {
                 if (cmd.hasOption("f")) {
                     File location = new File(cmd.getOptionValue("f"));
                     if (location.isDirectory()) {
                         setSQLitePredictionScenarioNo(location);
+                        predict.setSqlitePredictionScenario(this.SQLITE_PREDICTION_SCENARIO);
                         if (cmd.hasOption("im")) {
                             if (isValidMode(cmd.getOptionValue("im"))) {
                                 if (cmd.hasOption("pm")) {
                                     if (isValidMode(cmd.getOptionValue("pm"))) {
                                         this.INPUT_MODE = cmd.getOptionValue("im");
+                                        predict.setInputMode(cmd.getOptionValue("im"));
                                         this.PREDICT_MODE = cmd.getOptionValue("pm");
+                                        predict.setPredictMode(cmd.getOptionValue("pm"));
                                         try {
                                             predict.addPrediction(location, this.INPUT_MODE);
                                         } catch (Exception e) {
@@ -110,6 +119,8 @@ public class CLIOptions {
                             } else {
                                 log.log(Level.SEVERE, "invalid mode for option '-im " + validModesToString() + "'");
                             }
+                        } else if (cmd.hasOption("fd")) {
+                            predict.createFeatureDistribution(location);
                         } else {
                             log.log(Level.SEVERE, "missing input mode '-im " + validModesToString() + "'");
                         }
@@ -157,6 +168,7 @@ public class CLIOptions {
         HelpFormatter formatter = new HelpFormatter();
         formatter.setWidth(90);
         formatter.printHelp("PerfTimes.jar", options);
+        System.out.println("\nExample usage:\n-cs sqlite -f /home/user/sqlite_results/0/ -im featurewise -pm random");
         System.exit(0);
     }
 }

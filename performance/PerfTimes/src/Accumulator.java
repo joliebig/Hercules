@@ -111,6 +111,10 @@ public class Accumulator {
                 e.printStackTrace();
             }
         }
+        if (resultValues.isEmpty()) {
+            //System.out.println("Empty Hashmap! " + files[0]);
+            return;
+        }
         StringBuilder sb = new StringBuilder();
         sb.append(prefix);
         sb.append(HASHMAP_SIZE + (int) Math.round(computeMean(resultValues.get(removeLastChar(HASHMAP_SIZE)))) + "\n");
