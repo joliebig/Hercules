@@ -2084,7 +2084,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             exprFeatures match {
                                 case x :: Nil =>
                                     if (addedCondition.equals(Id(""))) {
-                                        exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(replaceAndTransform(stmt, x, false, functionContext)))))
+                                        exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, x, false, functionContext), x)))))
                                     } else {
                                         exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, x, false, functionContext), x)))))
                                     }
@@ -2112,7 +2112,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                                         exprFeatures.map(z => {
                                             val featExprDiff = fExprDiff(currentContext, z)
                                             //Opt(trueF, ElifStatement(One(replaceOptAndId(cond, z, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, z, false, functionContext), featExprDiff.and(addedFeature)))))
-                                            Opt(trueF, ElifStatement(One(replaceOptAndId(cond, z, functionContext)), One(replaceAndTransform(stmt, z, false, functionContext))))
+                                            Opt(trueF, ElifStatement(One(replaceOptAndId(cond, z, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, z, false, functionContext), z))))
                                         })
                                     case a :: as =>
                                         // TODO: verify generation of a new condition with the newly added context from exprFeatures
