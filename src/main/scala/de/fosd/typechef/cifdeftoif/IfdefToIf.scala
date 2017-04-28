@@ -2084,7 +2084,7 @@ class IfdefToIf extends ASTNavigation with ConditionalNavigation with IfdefToIfS
                             exprFeatures match {
                                 case x :: Nil =>
                                     if (addedCondition.equals(Id(""))) {
-                                        exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, x, false, functionContext), x)))))
+                                        exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(replaceAndTransform(stmt, x, false, functionContext)))))
                                     } else {
                                         exprFeatures.map(x => Opt(trueF, ElifStatement(One(replaceOptAndId(cond, x, functionContext)), One(insertPerfFunctCalls(replaceAndTransform(stmt, x, false, functionContext), x)))))
                                     }
