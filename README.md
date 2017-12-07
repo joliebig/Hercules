@@ -12,6 +12,7 @@ Installation and Usage
 Hercules requires a modified version of TypeChef. To install it simply run:
 
     git clone https://github.com/aJanker/TypeChef.git
+    git checkout master
     ./TypeChef/publish.sh
 
 To install the last version of Hercules simply run (from the same folder where the `TypeChef` directory lies):
